@@ -47,16 +47,17 @@ Do not add a backend, database, authentication, analytics or environment variabl
 
 | Where | What you should see |
 | --- | --- |
-| Overview, headline | "Edmonton pulled its goalie with 0:31 left in Game 7. Our model says 4:11." |
+| Overview, headline | "The Oilers waited until the final 31 seconds to pull their goalie. Our model says they waited nearly four minutes too long." |
 | Overview, three cards | 1:54 vs 3:51 · 2:46 vs 7:55 · 4:39 vs 12:02 |
 | The model → Test case | 4:00 / 8:15 / 12:33, every difference "0:00 ✓" |
 | The model, Playoffs toggle | Down 1 changes from 3:51 to 4:11 |
 | The model → Under the hood | Value and decision grids, with a red Pull region |
-| Deeper dives → Value of pulling | +0.58 points per season |
-| Deeper dives → Line changes | Down 1: pull at 4:05 |
+| Deeper dives → Value of pulling | "Additional points from pulling at the optimal time": +0.58 |
+| Deeper dives → Line changes | Down 1 goal, with line changes: pull with 4:05 remaining |
 | Deeper dives → Teams, 2025–26 | Florida Panthers ranked 1 |
 | Any page | Click two header tabs in a row: the page must not go blank |
-| Any page | Move a slider, go to Overview: a "you have changed the scoring rates" note appears; Reset restores 3:51 |
+| Any page | Move a slider, go to Overview: a "you have changed the scoring rates" note appears; "Reset to our estimates" restores 3:51 |
+| About | Four sub-tabs (About the project, Scoring rates, Data and cleaning, Methods and sources) |
 
 ## Fallback route: blank project, then port the code
 

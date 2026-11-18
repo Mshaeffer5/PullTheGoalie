@@ -1,16 +1,24 @@
-import { AppLink as Link } from "@/lib/nav";
+import { AppLink as Link, useSubTab } from "@/lib/nav";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Card, SectionTitle } from "@/components/ui";
+import { Card, SectionTitle, SubTabs } from "@/components/ui";
 import { ACTUAL_2025, meta, outcomes, rates, stakes, trend, value } from "@/lib/data";
 import { solveDP } from "@/lib/dp";
 import { GLOSSARY } from "@/lib/glossary";
 import { fmt, int, mss, pct } from "@/lib/format";
 
+const TABS = [
+  { id: "project", label: "About the project" },
+  { id: "rates", label: "Scoring rates" },
+  { id: "data", label: "Data and cleaning" },
+  { id: "methods", label: "Methods and sources" },
+];
+
 export default function About() {
+  const sub = useSubTab() ?? "project";
   const lp = solveDP({ r55: rates.chosen.r55, r65: rates.chosen.r65, r56: rates.chosen.r56 }).latestPull;
   type Comp = (typeof rates.components)[number];
   const cols: Column<Comp>[] = [
-    { key: "label", label: "DP input", render: (r) => r.label },
+    { key: "label", label: "Model input", render: (r) => r.label },
     { key: "rate", label: "Goals per 60", align: "right", render: (r) => <strong>{fmt(r.rate)}</strong> },
     { key: "situation", label: "Situation (skill output label)", render: (r) => r.situation, className: "whitespace-normal min-w-[12rem]" },
     { key: "filter", label: "Filter", render: (r) => r.filter, className: "whitespace-normal min-w-[12rem]" },
@@ -26,31 +34,35 @@ export default function About() {
   return (
     <div className="space-y-6">
       <SectionTitle>About this site and how it was built</SectionTitle>
+      <SubTabs base="/about" tabs={TABS} />
+      {sub === "project" && (
+        <div className="space-y-6">
 
       <Card>
         <div className="prose-site">
-          <h3 className="!mt-0">What it is and who it's for</h3>
+          <h3 className="!mt-0">About the project</h3>
           <p>
-            <strong>The question:</strong> when do NHL teams actually pull the goalie, when does a dynamic-programming model
-            say they should, and do the two agree? The site answers it for 2010–11 through games of November 7, 2026, and
+            <strong>The question:</strong> when do NHL teams actually pull their goalie, when should they according to a
+            mathematical model (a dynamic program), and do the two agree? The site answers it for 2010–11 through games of November 7, 2026, and
             then asks what late pulls cost, which teams pull earliest, whether line changes or stakes change the answer, and
             what happens after a pull.
           </p>
           <p>
-            <strong>Audience:</strong> hockey fans and the writers who cover them. The "Under the hood" view of the model is
-            written for a data-science audience who want to check or extend the model. Built for Columbia Business School
+            <strong>Audience:</strong> written for hockey fans and the writers who cover them. The "Under the hood" view of the
+            model is written for analysts who want to check or extend the model. Built for Columbia Business School
             B8131 Sports Analytics.
           </p>
 
           <h3>Key findings</h3>
           <ol>
             <li>
-              Teams pull later than the model says at every deficit. In 2025–26 the average first pull came at{" "}
-              {mss(ACTUAL_2025[1])} down 1, {mss(ACTUAL_2025[2])} down 2 and {mss(ACTUAL_2025[3])} down 3; the model says{" "}
+              Teams pull later than the model recommends at every deficit. In 2025–26 the average first pull came at{" "}
+              {mss(ACTUAL_2025[1])} down 1, {mss(ACTUAL_2025[2])} down 2 and {mss(ACTUAL_2025[3])} down 3; the model recommends{" "}
               {mss(lp[1])}, {mss(lp[2])} and {mss(lp[3])}.
             </li>
             <li>
-              The gap is closing slowly: down 1, teams pull about {fmt(t1.slope, 1)} seconds earlier each season (p &lt; 0.001).
+              The gap is closing slowly: down 1, teams pull about {fmt(t1.slope, 1)} seconds earlier each season on average
+              (p &lt; 0.001), though some seasons move later.
             </li>
             <li>
               The cost of pulling late is about {fmt(value.perSeasonGain.optimalVsActual, 2)} standings points per team per
@@ -75,9 +87,13 @@ export default function About() {
         </dl>
       </Card>
 
+        </div>
+      )}
+      {sub === "rates" && (
+        <div className="space-y-6">
       <Card>
         <div className="prose-site">
-          <h3 className="!mt-0">The model's three scoring rates, and why</h3>
+          <h3 className="!mt-0">How we estimated scoring rates</h3>
           <p>
             The course's scoring-rate skill sums every second of 2025–26 play by on-ice situation, from both teams'
             perspectives, and divides goals by time (goals × 3600 ÷ seconds). We re-ran it and matched the pipeline check
@@ -89,18 +105,18 @@ export default function About() {
         <div className="prose-site mt-4">
           <ul>
             <li>
-              <strong>5v5 = {fmt(rates.chosen.r55)}:</strong> even-strength play with both goalies in, from the 3rd period only.
+              <strong>5-on-5 = {fmt(rates.chosen.r55)}:</strong> even-strength play with both goalies in, from the 3rd period only.
               Pull decisions happen late, when players are tired and teams play more conservatively; 3rd-period 5v5 scoring is
               lower than the all-game rate ({fmt(ref.r55All.rate)}). The sample is still large ({int(rates.components[0].goals)}{" "}
               goals). One rate is used for both teams because the model has one 5v5 rate. MoneyPuck's league 5v5 rate for the
               same season ({fmt(ref.moneypuck5v5)}, all periods) is a close cross-check.
             </li>
             <li>
-              <strong>Pulled offense = {fmt(rates.chosen.r65)}:</strong> six attackers against five with our goalie pulled,
+              <strong>Your team's rate with an extra attacker (6-on-5) = {fmt(rates.chosen.r65)}:</strong> six attackers against five with our goalie pulled,
               restricted to <em>pull context</em> (3rd period, six-skater side trailing).
             </li>
             <li>
-              <strong>Empty-net defense = {fmt(rates.chosen.r56)}:</strong> the opponent's rate into our empty net, same filter.
+              <strong>Opponent's rate against your empty net (5-on-6) = {fmt(rates.chosen.r56)}:</strong> the opponent's rate into our empty net, same filter.
               Without the filter the rate is {fmt(ref.uncorrected5v6.rate)}: the same {ref.uncorrected5v6.goals} goals spread over{" "}
               {int(ref.delayedPenaltySeconds)} more seconds. Those extra seconds are mostly delayed penalties, when the empty
               net cannot be scored on, so leaving them in would make the empty net look about 3 goals per 60 safer than it is
@@ -115,21 +131,25 @@ export default function About() {
         </div>
       </Card>
 
+        </div>
+      )}
+      {sub === "data" && (
+        <div className="space-y-6">
       <Card>
         <div className="prose-site">
-          <h3 className="!mt-0">Filters, edge cases and why</h3>
+          <h3 className="!mt-0">Data cleaning and assumptions</h3>
           <ul>
             <li>
               <strong>Delayed penalties:</strong> the pull-time views use genuine spells only (at least 20 seconds, a goal, or to
               the horn). The scoring rates use pull context only (above).
             </li>
             <li>
-              <strong>Re-pulls:</strong> the required view follows the course definition: the first genuine spell per game, team
-              and deficit. A team that pulls down 1, concedes an empty-net goal and pulls again down 2 therefore contributes a
-              down-1 pull and a down-2 pull. Those re-pulls are {pct(meta.repulls["2"].share, 0)} of down-2 rows and come late
+              <strong>Repeat pulls:</strong> the required view follows the course definition: the first genuine spell per game,
+              team and deficit. A team that pulls down 1, concedes an empty-net goal and pulls again down 2 therefore contributes a
+              down-1 pull and a down-2 pull. Those repeat pulls are {pct(meta.repulls["2"].share, 0)} of down-2 rows and come late
               ({mss(meta.repulls["2"].meanRepull)} on average), so they pull the down-2 average toward the horn. The trend view has an
-              "Exclude re-pulls" switch, and the model comparison reports both versions; the conclusion is the same either way.
-              Re-pulls are identified from the order of each team's genuine spells, not from <code>n_prior_spells</code> (see
+              "Exclude repeat pulls" switch, and the model comparison reports both versions; the conclusion is the same either
+              way. Repeat pulls are identified from the order of each team's genuine spells, not from <code>n_prior_spells</code> (see
               below).
             </li>
             <li>
@@ -139,6 +159,11 @@ export default function About() {
             <li>
               <strong>Zero or negative deficits:</strong> we checked both files; {meta.nonPositiveDeficits} such rows remain after
               the course cleaning, so none needed removing.
+            </li>
+            <li>
+              <strong>Trend figure check:</strong> the course's reference figure shows the down-1 average rising from about 1.2
+              to about 1.9 minutes; our data give {mss(trend.rows[0].mean)} in 2010–11 and{" "}
+              {mss(trend.rows.find((r) => r.season === "2025–26" && r.deficit === 1)!.mean)} in 2025–26.
             </li>
             <li>
               <strong>Partial season:</strong> 2026–27 covers games through {meta.dataThrough} ({meta.partialSeason.down1} down-1
@@ -154,7 +179,9 @@ export default function About() {
               <strong>Course data cleaning (already applied):</strong> {int(meta.cleaning.removed)} of {int(meta.cleaning.rawSpells)} raw
               spells were removed: five-plus-minute spells with no goals (tracking errors), spells while tied or leading, and
               spells outside each deficit's plausibility window (5:00 down 1, 8:00 down 2, 12:00 down 3, 15:00 deeper). So no
-              pull earlier than those windows can appear in the data.
+              pull earlier than those windows can appear in the data. Down three, that window ends just after the model's
+              recommended time ({mss(lp[3])}), so the data cannot contain a pull as early as the model's; any that existed would
+              make teams look slightly later than they are.
             </li>
             <li>
               <strong>Franchises:</strong> Atlanta → Winnipeg and Phoenix/Arizona → Utah are one franchise each, so no team is
@@ -168,7 +195,7 @@ export default function About() {
             </li>
           </ul>
 
-          <h3>Data problems we found beyond the cleaning, and what we did</h3>
+          <h3>Additional data quality checks</h3>
           <ul>
             <li>
               <strong>Goals during pulls are missing before 2024–25.</strong> The pull file's goal columns are zero for every
@@ -186,7 +213,7 @@ export default function About() {
               {int(meta.firstPulls)} in <code>first_pulls.txt</code>.
             </li>
             <li>
-              <strong><code>n_prior_spells</code> can't identify re-pulls on its own.</strong> It counts every earlier goalie-out
+              <strong><code>n_prior_spells</code> can't identify repeat pulls on its own.</strong> It counts every earlier goalie-out
               spell, including delayed-penalty blips and spells the course cleaning removed. {int(meta.nPriorCountsRemoved)} teams'
               first genuine pull of a game has <code>n_prior_spells</code> above zero, so filtering on it would wrongly drop real first
               pulls. We used spell order instead.
@@ -209,8 +236,15 @@ export default function About() {
               Team ranks use Bayes shrinkage and require at least 8 pulls; we flag the noise rather than drop the data.
             </li>
           </ul>
-
-          <h3>Methods for the deeper dives</h3>
+        </div>
+      </Card>
+        </div>
+      )}
+      {sub === "methods" && (
+        <div className="space-y-6">
+      <Card>
+        <div className="prose-site">
+          <h3 className="!mt-0">Methods behind the additional analyses</h3>
           <ul>
             <li>
               <strong>Value of pulling:</strong> the model values three policies from 15:00 left (never pull, pull at 2025–26
@@ -223,7 +257,7 @@ export default function About() {
               course regression skill.
             </li>
             <li>
-              <strong>Line changes:</strong> 6v5 rates by forward line from the skill's by-line run, scheduled back from the horn
+              <strong>Line changes:</strong> extra-attacker (6-on-5) rates by forward line from the skill's by-line run, scheduled back from the horn
               (44 / 40 / 38 / 36 seconds), with the overall rate before that final rotation.
             </li>
             <li>
@@ -236,7 +270,7 @@ export default function About() {
             </li>
           </ul>
 
-          <h3>The model, briefly</h3>
+          <h3>How the model works</h3>
           <p>
             Backward recursion over goal difference (−8 to +8) and time left (one-second steps over the last 15 minutes). Each
             second, at most one goal; probabilities are rate ÷ 3600. Payoffs at the horn: 2 / 1.5 / 0 standings points in the
@@ -249,6 +283,17 @@ export default function About() {
               The model → Test case
             </Link>
             .
+          </p>
+
+          <h3>Source code and independent verification</h3>
+          <p>
+            The model runs in your browser from <code>src/lib/dp.ts</code>. We wrote a separate Python version{" "}
+            <span className="whitespace-nowrap">
+              (<code>analysis/dp.py</code>)
+            </span>{" "}
+            and check that both give identical decisions and values within 1e−12 on seven
+            parameter sets, plus the course test case. Every number on the site is rebuilt from the course data files by{" "}
+            <code>analysis/build_data.py</code>.
           </p>
 
           <h3>Sources</h3>
@@ -272,6 +317,8 @@ export default function About() {
           </ul>
         </div>
       </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ export const GLOSSARY: Record<string, { term: string; def: string }> = {
   },
   first: {
     term: "First genuine pull",
-    def: "The earliest genuine spell for a team in a game at a given deficit. Re-pulls after an empty-net goal are not counted again.",
+    def: "The first qualifying goalie pull by a team at each deficit in a game. If a team concedes an empty-net goal and pulls its goalie again while trailing by a different number of goals, that second pull is counted separately. Qualifying means the goalie stayed off at least 20 seconds, a goal was scored, or the spell ran to the final horn.",
   },
   deficit: {
     term: "Deficit",
@@ -24,8 +24,8 @@ export const GLOSSARY: Record<string, { term: string; def: string }> = {
     def: "Goals scored per 60 minutes of play in a given on-ice situation: goals × 3600 ÷ seconds.",
   },
   sixfive: {
-    term: "6v5 and 5v6",
-    def: "6v5: six attackers against five, with our goalie pulled. 5v6: the opponent's five skaters facing our six, shooting at our empty net.",
+    term: "6-on-5 and 5-on-6",
+    def: "6-on-5: your team's six skaters against five, with your goalie pulled for an extra attacker. 5-on-6: the opponent's five skaters against your six, shooting at your empty net.",
   },
   points: {
     term: "Expected standings points",
@@ -41,18 +41,18 @@ export const GLOSSARY: Record<string, { term: string; def: string }> = {
   },
   bubble: {
     term: "Bubble team",
-    def: "With 10 games left, a team that would reach last season's playoff line (8th place in its conference, by points %) with a 7–3 finish but miss it with a 3–7 finish.",
+    def: "With 10 games left, a team that would reach last season's playoff line (8th place in its conference, by points percentage) with a 7–3 finish but miss it with a 3–7 finish.",
   },
   srs: {
     term: "SRS",
     def: "Simple Rating System: goals per game better than an average team, after adjusting for opponents and home ice, fitted from each season's game results.",
   },
   shrink: {
-    term: "Shrunk pull time",
-    def: "A team's average pull time pulled toward the league average in proportion to how noisy it is (about 15 games a season). Uses a normal–normal Bayes update.",
+    term: "Adjusted pull time",
+    def: "A team's average pull time moved toward the league average in proportion to how noisy it is: teams with fewer pulls are adjusted more. Technically, a normal–normal Bayes update using the spread of true team averages and the noise of a single pull.",
   },
   repull: {
-    term: "Re-pull",
-    def: "A second or later goalie-out spell by the same team in the same game, usually after conceding an empty-net goal (pulled down 1, went down 2, pulled again). It counts as a first pull at its new deficit unless re-pulls are excluded.",
+    term: "Repeat pull",
+    def: "A second or later goalie pull by the same team in the same game, usually after conceding an empty-net goal (pulled down one, fell behind by two, pulled again). It counts as a first pull at its new deficit unless repeat pulls are excluded.",
   },
 };

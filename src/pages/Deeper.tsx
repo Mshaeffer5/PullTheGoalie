@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   ReferenceLine,
@@ -18,10 +19,11 @@ import {
 import { AXIS, ChartTooltipBox, ResponsiveChart, GRID, xLabel, yLabel } from "@/components/charts";
 import { RateControls } from "@/components/RateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
-import { Callout, Card, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
+import { Callout, Card, InfoDot, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
 import { DEFICITS, lines, outcomes, stakes, teams, value, type Deficit } from "@/lib/data";
 import { PLAYOFF, REGULAR, evaluatePolicy, lineAt, lineRateFn, solveDP } from "@/lib/dp";
 import { DEFICIT_LABEL, fmt, int, mss, pct, pval, secondTicks, signed } from "@/lib/format";
+import { useIsNarrow } from "@/lib/hooks";
 import { useModel, useSolution } from "@/lib/model";
 
 const TABS = [
@@ -36,7 +38,7 @@ export default function Deeper() {
   const sub = useSubTab();
   return (
     <div>
-      <SectionTitle sub="Five follow-up questions the data and the model can answer. Model-based tabs use the scoring-rate sliders.">
+      <SectionTitle sub="Five follow-up questions the data and the model can answer. Tabs that use the model respond to the scoring-rate sliders.">
         Deeper dives
       </SectionTitle>
       <SubTabs base="/deeper" tabs={TABS} />
@@ -84,15 +86,29 @@ function ValueTab() {
   return (
     <div className="space-y-6">
       <RateControls showMode={false} />
+      <h3 className="text-lg font-semibold text-ink">How many standings points is pulling the goalie worth?</h3>
       <div className="grid gap-4 md:grid-cols-3">
-        <Stat accent label="Model's times vs today's" value={`+${fmt(g(calc.o - calc.a), 2)}`} sub="standings points per team per 82-game season" />
-        <Stat label="Today's times vs never pulling" value={`+${fmt(g(calc.a - calc.n), 2)}`} sub="what current pulling already earns" />
-        <Stat label="Model's times vs never pulling" value={`+${fmt(g(calc.o - calc.n), 2)}`} sub="the full value of the extra attacker" />
+        <Stat
+          accent
+          label="Additional points from pulling at the optimal time"
+          value={`${signed(g(calc.o - calc.a), 2)}`}
+          sub="standings points per team per 82-game season, vs pulling at today's average times"
+        />
+        <Stat
+          label="Points gained from current pulling strategies"
+          value={`${signed(g(calc.a - calc.n), 2)}`}
+          sub="today's average pull times vs never pulling"
+        />
+        <Stat
+          label="Total potential benefit of pulling the goalie"
+          value={`${signed(g(calc.o - calc.n), 2)}`}
+          sub="the model's times vs never pulling"
+        />
       </div>
       <Callout tone="finding">
-        Teams already capture about {pct((calc.a - calc.n) / (calc.o - calc.n), 0)} of what pulling the goalie can be worth.
-        Moving to the model's timing would add roughly {fmt(g(calc.o - calc.a), 2)} points a season, about one standings point
-        every {fmt(1 / g(calc.o - calc.a), 1)} seasons.
+        NHL teams already capture about {pct((calc.a - calc.n) / (calc.o - calc.n), 0)} of the potential benefit of pulling
+        their goalies. But by pulling earlier, they could gain another {fmt(g(calc.o - calc.a), 2)} standings points per
+        season on average. Over time, those small improvements add up.
         {isDefault && (
           <> 95% bootstrap interval at our default rates: {fmt(value.perSeasonGain.ci95OptimalVsActual[0], 2)} to {fmt(value.perSeasonGain.ci95OptimalVsActual[1], 2)} points.</>
         )}
@@ -110,7 +126,8 @@ function ValueTab() {
           pinned={[{ d: 99, share: 1, opt: calc.o, act: calc.a, never: calc.n, gain82: g(calc.o - calc.a) }]}
         />
         <Note>
-          Pinned row: all team-games, including scores beyond ±3 not listed. Method: the DP values three policies over the last 15 minutes. "Never pull" keeps the goalie in throughout. "Today's
+          Pinned row: all team-games, including scores beyond ±3 not listed. Method: the model values three policies over the
+          last 15 minutes. "Never pull" keeps the goalie in throughout. "Today's
           times" pulls exactly at the 2025–26 average time for each deficit (down 3 or more uses the down-3 time). "Model's
           times" is the optimal policy. Each team-game's score at 15:00 left comes from the 2025–26 play-by-play intervals, and
           the per-game average is multiplied by 82. The values are model-based: they assume our scoring rates and treat the
@@ -143,29 +160,37 @@ function TeamsTab() {
     srs: 0,
   };
   const cols: Column<TeamRow>[] = [
-    { key: "rank", label: "Rank", tip: `Earliest = 1, by shrunk pull time. Teams with fewer than ${teams.minPulls} pulls are not ranked.`, align: "right", render: (r) => r.rank ?? "—", sort: (r) => r.rank ?? 99 },
+    { key: "rank", label: "Rank", tip: `Earliest = 1, by adjusted pull time. Teams with fewer than ${teams.minPulls} pulls are not ranked.`, align: "right", render: (r) => r.rank ?? "—", sort: (r) => r.rank ?? 99 },
     { key: "name", label: "Team", render: (r) => r.name, sort: (r) => r.name },
-    { key: "n", label: "Pulls", tip: "Down-1 first genuine pulls that season.", align: "right", render: (r) => int(r.n), sort: (r) => r.n },
+    { key: "n", label: "Pulls", tip: "Goalie pulls while trailing by one that season.", align: "right", render: (r) => int(r.n), sort: (r) => r.n },
     { key: "mean", label: "Average pull", tip: "Raw average time left at the pull (m:ss).", align: "right", render: (r) => mss(r.mean), sort: (r) => r.mean },
     {
       key: "shrunk",
-      label: "Shrunk pull",
-      tip: "Average pulled toward the league average by a normal–normal Bayes update. Fewer pulls = more shrinkage.",
+      label: "Adjusted pull time",
+      tip: "The team's average moved toward the league average based on its number of pulls. Fewer pulls = a bigger adjustment.",
       align: "right",
       render: (r) => mss(r.shrunk),
       sort: (r) => r.shrunk,
     },
-    { key: "vs", label: "vs league", tip: "Shrunk pull minus the league average, seconds. Positive = earlier.", align: "right", render: (r) => (r.team === "League" ? "—" : `${signed(r.shrunk - prior.mu0, 1)} s`), sort: (r) => r.shrunk - prior.mu0 },
+    { key: "vs", label: "vs league", tip: "Adjusted pull time minus the league average, seconds. Positive = earlier.", align: "right", render: (r) => (r.team === "League" ? "—" : `${signed(r.shrunk - prior.mu0, 1)} s`), sort: (r) => r.shrunk - prior.mu0 },
     { key: "pct", label: "Points %", tip: "Standings points ÷ (2 × games played).", align: "right", render: (r) => fmt(r.pct, 3), sort: (r) => r.pct },
     { key: "srs", label: "SRS", tip: "Goals per game better than average, adjusted for opponents and home ice.", align: "right", render: (r) => signed(r.srs, 2), sort: (r) => r.srs },
   ];
-  const scatter = rows.filter((r) => r.n >= teams.minPulls).map((r) => ({ x: r.pct, y: r.shrunk - prior.mu0, name: r.name, n: r.n }));
+  const narrow = useIsNarrow();
+  const base = rows.filter((r) => r.n >= teams.minPulls).map((r) => ({ x: r.pct, y: r.shrunk - prior.mu0, name: r.name, team: r.team, n: r.n }));
+  const byY = [...base].sort((a, b) => b.y - a.y);
+  const standouts = new Set([...byY.slice(0, 2), ...byY.slice(-2)].map((p) => p.team));
+  const scatter = base.map((p) => ({ ...p, label: standouts.has(p.team) ? p.team : "" }));
   const yLim = Math.max(10, Math.ceil(Math.max(...scatter.map((p) => Math.abs(p.y)), 1) / 5) * 5);
   const yTicks = Array.from({ length: (2 * yLim) / 5 + 1 }, (_, i) => -yLim + i * 5);
   const xLo = Math.floor(Math.min(...scatter.map((p) => p.x), 0.4) * 10) / 10;
   const xHi = Math.ceil(Math.max(...scatter.map((p) => p.x), 0.7) * 10) / 10;
   const xTicks = Array.from({ length: Math.round((xHi - xLo) / 0.1) + 1 }, (_, i) => Math.round((xLo + i * 0.1) * 10) / 10);
   const q = teams.quality.pct;
+  const fitLine = [
+    { x: xLo, y: q.intercept + q.slope * xLo },
+    { x: xHi, y: q.intercept + q.slope * xHi },
+  ];
   const c = teams.compare2025;
   type Fr = (typeof teams.franchises)[number];
   const frCols: Column<Fr>[] = [
@@ -180,12 +205,8 @@ function TeamsTab() {
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold">Who pulls earliest when down one?</h3>
-            <p className="text-[14px] text-muted">
-              About 15 pulls per team per season, so raw averages are noisy. Ranks use the <Term id="shrink">shrunk</Term>{" "}
-              time (prior mean {mss(prior.mu0)}, spread across teams {fmt(prior.sigma0, 1)} s, single-pull noise{" "}
-              {fmt(prior.sigmaD, 1)} s).
-            </p>
+            <h3 className="font-semibold">Which NHL teams are the most aggressive about pulling their goalie?</h3>
+            <p className="text-[14px] text-muted">Ranked by how early they pull when trailing by one goal. Pick a season.</p>
           </div>
           <label className="text-sm text-muted">
             Season{" "}
@@ -208,18 +229,39 @@ function TeamsTab() {
           maxHeight={520}
         />
         {season === "2025–26" && (
-          <Note>
-            Earliest vs latest in 2025–26: {c.early.name} ({mss(c.early.mean)}, {c.early.n} pulls) vs {c.late.name} (
-            {mss(c.late.mean)}, {c.late.n} pulls). Welch t-test: t = {fmt(c.t, 2)}, {pval(c.p)}.
-          </Note>
+          <p className="mt-3 text-[15px] text-ink">
+            In 2025–26, {c.early.name} pulled earliest ({mss(c.early.mean)} left on average over {c.early.n} pulls) and{" "}
+            {c.late.name} latest ({mss(c.late.mean)} over {c.late.n} pulls). That gap is larger than chance alone would
+            explain (Welch t-test: t = {fmt(c.t, 2)}, {pval(c.p)}).
+          </p>
         )}
+        <Note>
+          With only about 15 qualifying pulls per team each season, a few unusual games can significantly affect the
+          averages. To make team comparisons more reliable, we adjust each team's average toward the league average based
+          on its sample size, and rank teams by that <Term id="shrink">adjusted pull time</Term>.
+          <InfoDot
+            content={
+              <>
+                Normal–normal Bayes update for {season}: prior mean {mss(prior.mu0)}, spread of true team averages{" "}
+                {fmt(prior.sigma0, 1)} s, noise of a single pull {fmt(prior.sigmaD, 1)} s. A team with n pulls keeps a weight
+                of σ₀² ÷ (σ₀² + σ²/n) on its own average.
+              </>
+            }
+          />
+        </Note>
       </Card>
       <Card>
-        <h3 className="font-semibold">Do better teams pull earlier?</h3>
+        <h3 className="font-semibold">Are better teams more aggressive about pulling their goalies?</h3>
+        <p className="mt-1 text-[15px] text-ink">
+          Slightly, but the difference is small. Across {int(q.n)} team-seasons, stronger teams tended to pull their goalies
+          a little earlier. However, a 10-percentage-point improvement in standings points percentage was associated with
+          pulling only about {fmt(q.slope / 10, 1)} seconds earlier.
+        </p>
         <p className="mb-2 mt-1 text-[14px] text-muted">
-          Slightly. Across {int(q.n)} team-seasons (2010–11 to 2025–26, {teams.minPulls}+ pulls), each 0.100 of points % goes with
-          pulling about {fmt(q.slope / 10, 1)} seconds earlier ({pval(q.p)}, r = {fmt(q.r, 2)}). Using SRS instead gives the same
-          answer ({pval(teams.quality.srs.p)}). The chart shows {season}.
+          The relationship is statistically significant ({pval(q.p)}, r = {fmt(q.r, 2)}; using <Term id="srs">SRS</Term>{" "}
+          instead gives the same answer, {pval(teams.quality.srs.p)}) but too small to matter in practice. Full seasons
+          2010–11 to 2025–26, teams with {teams.minPulls}+ pulls. Dots show {season}; the line is the fit across all
+          team-seasons; the two earliest and two latest teams are labelled.
         </p>
         <ResponsiveChart height={340}>
           <ScatterChart margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>
@@ -232,15 +274,19 @@ function TeamsTab() {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as { x: number; y: number; name: string; n: number };
+                if (!p.name) return null;
                 return <ChartTooltipBox title={p.name} lines={[{ text: `Points % ${p.x.toFixed(3)}` }, { text: `${signed(p.y, 1)} s vs league (${p.n} pulls)` }]} />;
               }}
             />
-            <Scatter data={scatter} fill="#1d4ed8" fillOpacity={0.75} isAnimationActive={false} />
+            <Scatter data={fitLine} line={{ stroke: "#dc2626", strokeWidth: 2 }} shape={() => <g />} isAnimationActive={false} legendType="none" tooltipType="none" />
+            <Scatter data={scatter} fill="#1d4ed8" fillOpacity={0.75} isAnimationActive={false}>
+              {!narrow && <LabelList dataKey="label" position="right" style={{ fontSize: 12, fill: "#0f172a", fontWeight: 600 }} />}
+            </Scatter>
           </ScatterChart>
         </ResponsiveChart>
       </Card>
       <Card>
-        <h3 className="mb-2 font-semibold">Franchises over 16 seasons</h3>
+        <h3 className="mb-2 font-semibold">Which franchises have pulled earliest over 16 seasons?</h3>
         <SortableTable columns={frCols} rows={teams.franchises} rowKey={(r) => r.franchise} maxHeight={480} initialSort={{ key: "dev", dir: "desc" }} />
         <Note>
           Atlanta and Winnipeg, and Phoenix, Arizona and Utah, are counted as one franchise each, following the franchise
@@ -261,11 +307,12 @@ function LinesTab() {
   const constant = useSolution().latestPull;
   const byLine = useMemo(() => solveDP({ ...rates, r65: fn, payoffs }).latestPull, [rates, fn, payoffs]);
   const stepData = useMemo(() => Array.from({ length: 301 }, (_, i) => ({ t: 300 - i, rate: i === 300 ? fn(1) : fn(300 - i), line: 300 - i <= 158 ? lineAt(Math.max(1, 300 - i), lines.blocks) : null })), [fn]);
+  const lineShift1 = (byLine[1] ?? 0) - (constant[1] ?? 0);
   type LR = (typeof lines.rates)[number];
   const lrCols: Column<LR>[] = [
     { key: "line", label: "Forward line", render: (r) => `Line ${r.line}${r.line === 1 ? " (most-used)" : ""}` },
-    { key: "toi", label: "Shift length", tip: "Typical time on ice before a change (handout).", align: "right", render: (r) => `${lines.blocks.find((b) => b.line === r.line)!.seconds} s` },
-    { key: "sec", label: "6v5 time", align: "right", render: (r) => `${fmt(r.seconds / 3600, 1)} h` },
+    { key: "toi", label: "Shift length", tip: "Assumed time on ice before a change.", align: "right", render: (r) => `${lines.blocks.find((b) => b.line === r.line)!.seconds} s` },
+    { key: "sec", label: "Time with goalie pulled", align: "right", render: (r) => `${fmt(r.seconds / 3600, 1)} h` },
     { key: "g", label: "Goals", align: "right", render: (r) => r.goals },
     { key: "rate", label: "Goals per 60", align: "right", render: (r) => fmt(r.rate) },
   ];
@@ -273,37 +320,56 @@ function LinesTab() {
     <div className="space-y-6">
       <RateControls />
       <Card>
-        <h3 className="font-semibold">Does saving the best line for the end move the pull?</h3>
-        <p className="mt-1 text-[14px] text-muted">
-          With the extra attacker on, the top line scores far more than the others (2025–26, pull context). Following the
-          handout, the best line covers the last 44 seconds, line 2 the 40 seconds before that, then lines 3 and 4. Before
-          that final 2:38 rotation the line on the ice is unknown, so the overall 6v5 rate (the slider) applies.
+        <h3 className="font-semibold">Does having your best players on the ice change when you should pull?</h3>
+        <p className="mt-1 text-[15px] text-ink">
+          Not all forward lines are equally dangerous with an extra attacker on the ice. Our data suggest that a team's
+          most-used line scores at a higher rate than its other lines, although the samples are relatively small. We
+          examine whether accounting for those differences changes the optimal time to pull the goalie.
         </p>
-        <div className="mt-3">
-          <SortableTable columns={lrCols} rows={lines.rates} rowKey={(r) => String(r.line)} />
-        </div>
-        <Note>
-          A further {fmt(lines.unranked.seconds / 3600, 1)} hours of 6v5 time had no ranked line on the ice ({lines.unranked.goals} goals, {fmt(lines.unranked.rate)} per 60). Line 4 rests on only {lines.rates[3].goals} goals, so treat its rate as rough.
-        </Note>
+        <p className="mt-2 text-[15px] text-ink">
+          {lineShift1 === 0
+            ? "It doesn't: the recommended pull when trailing by one stays the same."
+            : `${Math.abs(lineShift1) <= 20 ? "Only a little" : "Yes"}: saving the best line for the end moves the recommended pull ${Math.abs(lineShift1)} seconds ${lineShift1 > 0 ? "earlier" : "later"} when trailing by one (${mss(byLine[1])} instead of ${mss(constant[1])}).`}
+        </p>
       </Card>
       <div className="grid gap-4 md:grid-cols-3">
         {DEFICITS.map((d) => (
           <Stat
             key={d}
             accent={d === 1}
-            label={`Down ${d}: pull at`}
-            value={<span className="text-pull">{mss(byLine[d])}</span>}
-            sub={`with line changes: ${Math.abs((byLine[d] ?? 0) - (constant[d] ?? 0))} s ${(byLine[d] ?? 0) >= (constant[d] ?? 0) ? "earlier" : "later"} than with one 6v5 rate (${mss(constant[d])})`}
+            label={`Down ${d} goal${d > 1 ? "s" : ""}, with line changes`}
+            value={
+              <span className="text-2xl">
+                Pull with <span className="text-pull">{mss(byLine[d])}</span> remaining
+              </span>
+            }
+            sub={`${Math.abs((byLine[d] ?? 0) - (constant[d] ?? 0))} s ${(byLine[d] ?? 0) >= (constant[d] ?? 0) ? "earlier" : "later"} than with a single extra-attacker rate (${mss(constant[d])})`}
           />
         ))}
       </div>
       <Card>
-        <h3 className="font-semibold">The 6v5 scoring rate the model uses, by time left</h3>
+        <h3 className="font-semibold">How we model the line changes</h3>
+        <p className="mt-1 text-[14px] text-muted">
+          We assume the most-used line covers the last {lines.blocks[0].seconds} seconds, line 2 the{" "}
+          {lines.blocks[1].seconds} seconds before that, then lines 3 and 4 ({lines.blocks[2].seconds} and{" "}
+          {lines.blocks[3].seconds} seconds). Before that final {mss(lines.blocks.reduce((a, b) => a + b.seconds, 0))}{" "}
+          rotation the line on the ice is unknown, so the overall extra-attacker rate (the slider) applies. Line rates are
+          from 2025–26 games with the goalie pulled.
+        </p>
+        <div className="mt-3">
+          <SortableTable columns={lrCols} rows={lines.rates} rowKey={(r) => String(r.line)} />
+        </div>
+        <Note>
+          A further {fmt(lines.unranked.seconds / 3600, 1)} hours of extra-attacker time had no ranked line on the ice{" "}
+          <span className="whitespace-nowrap">({lines.unranked.goals} goals,</span> {fmt(lines.unranked.rate)} per 60). Line 4 rests on only {lines.rates[3].goals}{" "}
+          goals, so treat its rate as rough.
+        </Note>
+        <h3 className="mt-6 font-semibold">The extra-attacker scoring rate the model uses, by time left</h3>
         <ResponsiveChart height={300}>
           <LineChart data={stepData} margin={{ top: 28, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="t" type="number" domain={[0, 300]} reversed ticks={[300, 240, 180, 120, 60, 0]} tickFormatter={(v: number) => mss(v)} tick={AXIS} label={xLabel("Time left (m:ss)")} />
-            <YAxis tick={AXIS} domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} label={yLabel("6v5 goals per 60")} width={76} />
+            <YAxis tick={AXIS} domain={[0, 10]} ticks={[0, 2, 4, 6, 8, 10]} label={yLabel("Goals per 60 (6-on-5)")} width={76} />
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
@@ -316,8 +382,8 @@ function LinesTab() {
           </LineChart>
         </ResponsiveChart>
         <Note>
-          {lines.cyclingVariant.note} Under that assumption the latest pull down 1 would be {mss(lines.cyclingVariant.latest["1"])},
-          but only during line 1's shifts.
+          {lines.cyclingVariant.note} Under that assumption the latest pull down one would be{" "}
+          {mss(lines.cyclingVariant.latest["1"])}, but only during line 1's shifts.
         </Note>
       </Card>
     </div>
@@ -349,15 +415,18 @@ function OutcomesTab() {
   const lastFull = rows.filter((r) => !r.partialSeason).at(-1)!;
   const cb = (r: (typeof rows)[number]) => (r.won + r.tiedLostOT) / r.n;
   const tt = outcomes.trendTest;
+  const ct = outcomes.concedeTrendTest;
+  const narrow = useIsNarrow();
   return (
     <div className="space-y-6">
       <Card>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold">What happens after a team pulls the goalie</h3>
+            <h3 className="font-semibold">Does pulling the goalie actually work?</h3>
             <p className="text-[14px] text-muted">
-              Final result of every regular-season first genuine pull, by season. Since 2010–11, {pct(pooled.cameBack, 1)} of{" "}
-              {DEFICIT_LABEL[d].toLowerCase()} pulls got the game to overtime or better and {pct(pooled.won, 1)} ended in a win.
+              The final result of every regular-season goalie pull, by season. Since 2010–11, {pct(pooled.cameBack, 1)} of
+              pulls when {DEFICIT_LABEL[d].toLowerCase()} got the game to overtime or better and {pct(pooled.won, 1)} ended
+              in a win.
             </p>
           </div>
           <Segmented label="Deficit" value={d} onChange={setD} options={DEFICITS.map((x) => ({ value: x, label: DEFICIT_LABEL[x] }))} />
@@ -365,7 +434,13 @@ function OutcomesTab() {
         <ResponsiveChart height={380}>
           <BarChart data={data} margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="season" tick={AXIS} interval={1} label={xLabel("Season")} />
+            <XAxis
+              dataKey="season"
+              tick={AXIS}
+              interval={narrow ? 3 : 1}
+              tickFormatter={(x: string) => (narrow ? `'${x.slice(-2)}` : x)}
+              label={xLabel(narrow ? "Season (ending year)" : "Season")}
+            />
             <YAxis tick={AXIS} domain={[0, 1]} ticks={[0, 0.25, 0.5, 0.75, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} label={yLabel("Share of pulls")} width={76} />
             <Tooltip
               content={({ active, payload }) => {
@@ -400,11 +475,21 @@ function OutcomesTab() {
         {d === 1 && (
           <div className="mt-4">
             <Callout tone="finding">
-              Both ends have grown. Down 1, the share of pulls that got to OT or better rose from {pct(cb(rows[0]), 0)} in{" "}
-              {rows[0].season} to {pct(cb(lastFull), 0)} in {lastFull.season} (logistic regression on season:{" "}
-              {signed(tt.coef, 3)} log-odds per season, {pval(tt.p)}, n = {int(tt.n)}). The share that conceded again rose too,
-              from {pct(rows[0].conceded / rows[0].n, 0)} to {pct(lastFull.conceded / lastFull.n, 0)}. That is what earlier
-              pulls should produce: more time with the extra attacker, and more time for the empty net to be found.
+              <p>
+                Pulling the goalie has become a higher-risk, higher-reward strategy. When trailing by one goal, teams forced
+                overtime or better following {pct(cb(rows[0]), 0)} of goalie pulls in {rows[0].season}, compared with{" "}
+                {pct(cb(lastFull), 0)} in {lastFull.season}. But the share of games in which they conceded another goal also
+                increased, from {pct(rows[0].conceded / rows[0].n, 0)} to {pct(lastFull.conceded / lastFull.n, 0)}.
+              </p>
+              <p className="mt-2">
+                This is consistent with teams pulling earlier: more time with an extra attacker creates more opportunities to
+                score, but also more opportunities for the opponent to capitalize on an empty net.
+              </p>
+              <p className="mt-2 text-[13px] text-muted">
+                Both trends are statistically significant (logistic regression on season, n = {int(tt.n)}: overtime or
+                better {signed(tt.coef, 3)} log-odds per season, {pval(tt.p)}; conceding again {signed(ct.coef, 3)},{" "}
+                {pval(ct.p)}).
+              </p>
             </Callout>
           </div>
         )}
@@ -463,16 +548,24 @@ function StakesTab() {
   const ticks = secondTicks(top * 1.05, 60);
   return (
     <div className="space-y-6">
+      <h3 className="text-lg font-semibold text-ink">Do coaches pull earlier when more is at stake?</h3>
       <Callout tone="finding">
-        Coaches pull at the same time whatever is at stake. Neither the playoffs nor a bubble team's last 10 games move the
-        pull by a significant amount at any deficit, even though the playoff objective says to pull earlier (
-        {mss(playoffLp[1])} vs {mss(regularLp[1])} down 1).
+        <p>
+          You might expect coaches to take bigger risks when their season is on the line. Surprisingly, we found little
+          evidence that they do.
+        </p>
+        <p className="mt-2">
+          Teams pull their goalies at nearly identical times in the regular season and playoffs, even though our model
+          recommends pulling earlier in playoff games ({mss(playoffLp[1])} vs {mss(regularLp[1])} when trailing by one).
+          Teams fighting for a playoff spot also show little difference in their approach during the final 10 games of the
+          season. None of the differences below is statistically significant at the 5% level.
+        </p>
       </Callout>
       <Card>
         <h3 className="font-semibold">Average time left at the first pull, by stakes</h3>
         <p className="mb-2 mt-1 text-[14px] text-muted">
           Seasons {stakes.seasons[0]} to {stakes.seasons[stakes.seasons.length - 1]}, except 2019–20 (no normal stretch run).
-          Regular-season groups use first genuine pulls; playoff pulls use the same filter on playoff games.
+          Regular-season groups count each team's first pull at each deficit; playoff pulls use the same rules.
         </p>
         <ResponsiveChart height={340}>
           <BarChart data={data} margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>

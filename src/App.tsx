@@ -15,7 +15,7 @@ const NAV = [
   { to: "/actual", label: "When teams pull" },
   { to: "/model", label: "The model" },
   { to: "/deeper", label: "Deeper dives" },
-  { to: "/about", label: "About & method" },
+  { to: "/about", label: "About" },
 ];
 
 function ScrollTop() {
@@ -32,18 +32,19 @@ export default function App() {
     <Tooltip.Provider>
       <ModelProvider>
         <ScrollTop />
-        <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex min-h-screen flex-col">
+        <header className="border-b border-line bg-white/95 backdrop-blur md:sticky md:top-0 md:z-30">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 md:py-3">
             <AppNavLink to="/" end className={() => "flex items-center gap-2"}>
               <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm font-bold text-white">
                 6v5
               </span>
               <span>
                 <span className="block text-[17px] font-semibold leading-tight text-ink">Pull the Goalie</span>
-                <span className="block text-[12px] leading-tight text-muted">When NHL teams pull, and when they should</span>
+                <span className="hidden text-[12px] leading-tight text-muted sm:block">When NHL teams pull, and when they should</span>
               </span>
             </AppNavLink>
-            <nav className="flex flex-wrap gap-1" aria-label="Main">
+            <nav className="-mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" aria-label="Main">
               {NAV.map((n) => (
                 <AppNavLink
                   key={n.to}
@@ -51,7 +52,7 @@ export default function App() {
                   end={n.end}
                   className={(active) =>
                     cn(
-                      "rounded-lg px-3 py-1.5 text-sm font-medium",
+                      "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium",
                       active ? "bg-brand text-white" : "text-muted hover:bg-ice hover:text-ink",
                     )
                   }
@@ -62,13 +63,13 @@ export default function App() {
             </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 py-8">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:py-8">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/actual/:sub?" element={<Actual />} />
             <Route path="/model/:sub?" element={<Model />} />
             <Route path="/deeper/:sub?" element={<Deeper />} />
-            <Route path="/about" element={<About />} />
+            <Route path="/about/:sub?" element={<About />} />
             <Route path="*" element={<Home />} />
           </Routes>
         </main>
@@ -79,9 +80,10 @@ export default function App() {
             <a className="text-brand underline" href="https://moneypuck.com" target="_blank" rel="noreferrer">
               MoneyPuck.com
             </a>
-            . Model and analysis: our own. See About &amp; method for definitions and filters.
+            . Model and analysis: our own. See About for definitions and filters.
           </div>
         </footer>
+        </div>
       </ModelProvider>
     </Tooltip.Provider>
   );

@@ -280,11 +280,11 @@ actual_2025_first = {str(d): r(fp[(fp.season == 20252026) & (fp.deficit == d) & 
 write("rates.json", {
     "chosen": {"id": CHOSEN, "r55": R55, "r65": R65, "r56": R56},
     "components": [
-        {"key": "r55", "label": "5v5 scoring rate, each team", "situation": "5v5, both goalies in",
+        {"key": "r55", "label": "Scoring rate with both goalies in (5-on-5), each team", "situation": "5v5, both goalies in",
          "filter": "3rd period only, all scores", **rate_5v5_p3},
-        {"key": "r65", "label": "Pulled offense (6v5)", "situation": "6v5p: own goalie pulled, extra attacker",
+        {"key": "r65", "label": "Your team's scoring rate with an extra attacker (6-on-5)", "situation": "6v5p: own goalie pulled, extra attacker",
          "filter": "Pull context: 3rd period, six-skater side trailing", **rate_6v5},
-        {"key": "r56", "label": "Empty-net defense (5v6)", "situation": "5v6P: facing the six-skater side's empty net",
+        {"key": "r56", "label": "Opponent's scoring rate against your empty net (5-on-6)", "situation": "5v6P: facing the six-skater side's empty net",
          "filter": "Pull context: 3rd period, six-skater side trailing", **rate_5v6},
     ],
     "reference": {"r55All": rate_5v5_all, "uncorrected6v5": unc_6v5, "uncorrected5v6": unc_5v6,
@@ -421,7 +421,7 @@ quality = {}
 for xname in ("pct", "srs"):
     est, n = ols(tq.early.values, pd.DataFrame({xname: tq[xname].values}))
     c, se, p = est[xname]
-    quality[xname] = {"slope": r(c, 3), "se": r(se, 3), "p": float(p), "n": n,
+    quality[xname] = {"slope": r(c, 3), "se": r(se, 3), "p": float(p), "n": n, "intercept": r(est["Constant"][0], 3),
                       "r": r(np.corrcoef(tq[xname], tq.early)[0, 1], 3)}
 latest_full = tr[(tr.key == 20252026) & (tr.n >= MIN_TEAM_PULLS)].sort_values("shrunk", ascending=False)
 early_team, late_team = latest_full.iloc[0].team, latest_full.iloc[-1].team
@@ -464,11 +464,14 @@ for (key, d), g in fpj[fpj.deficit.between(1, 3)].groupby(["season", "deficit"])
 g1 = fpj[(fpj.deficit == 1) & (~fpj.partial)].copy()
 lres = LogisticRegTrain(g1.came_back.astype(float).values,
                         pd.DataFrame({"season_index": (g1.season // 10000 - 2010).values}))
+y_conc = (-g1.final_margin > g1.deficit).astype(float).values
+cres = LogisticRegTrain(y_conc, pd.DataFrame({"season_index": (g1.season // 10000 - 2010).values}))
 val = first_from_spells.merge(fpj[["game_id", "team", "deficit", "came_back"]], on=["game_id", "team", "deficit"])
 val = val[(val.source == "shifts") & (val.deficit == 1)]
 write("outcomes.json", {
     "rows": out_rows,
     "trendTest": {"coef": r(lres.coef[1], 4), "se": r(lres.se[1], 4), "p": float(lres.pvalue[1]), "n": int(lres.n_valid)},
+    "concedeTrendTest": {"coef": r(cres.coef[1], 4), "se": r(cres.se[1], 4), "p": float(cres.pvalue[1]), "n": int(cres.n_valid)},
     "pooled": {str(d): {"n": int(len(g)), "cameBack": r(g.came_back.mean(), 4), "won": r((g.outcome == "won").mean(), 4),
                         "conceded": r((g.outcome == "conceded").mean(), 4)}
                for d, g in fpj[(fpj.deficit.between(1, 3)) & (~fpj.partial)].groupby("deficit")},
@@ -563,9 +566,11 @@ latest_pulls = [rec(x) for x in fpj[fpj.deficit == 1].sort_values(["pull_sec_rem
 longest = []
 for x in pt[pt.genuine == 1].sort_values("duration_sec", ascending=False).head(10).itertuples():
     longest.append({"season": label_from_key(x.season), "date": x.game_date, "team": x.team, "opp": x.opponent,
-                    "deficit": int(x.deficit), "start": int(x.start_sec_remaining), "end": int(x.end_sec_remaining),
+                    "home": int(x.is_home), "deficit": int(x.deficit), "start": int(x.start_sec_remaining), "end": int(x.end_sec_remaining),
                     "duration": int(x.duration_sec), "playoff": bool(x.playoff), "source": x.source})
 comebacks = [rec(x) for x in fpj[(fpj.deficit >= 2) & (fpj.outcome == "won")]
+             .sort_values(["deficit", "pull_sec_remaining"], ascending=[False, False])
+             .drop_duplicates(["game_id", "team"])  # one row per comeback game
              .sort_values("game_date", ascending=False).itertuples()]
 write("records.json", {"earliest": earliest, "latestDown1": latest_pulls, "longest": longest,
                        "comebacksFrom2Plus": comebacks})

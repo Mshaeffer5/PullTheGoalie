@@ -3,16 +3,17 @@ import { useMemo, useState } from "react";
 import { useSubTab } from "@/lib/nav";
 import { CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import { AXIS, ChartTooltipBox, ResponsiveChart, Dumbbell, GRID, xLabel, yLabel } from "@/components/charts";
-import { RateControls } from "@/components/RateControls";
+import { RATE_LABELS, RateControls } from "@/components/RateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Callout, Card, cn, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
 import { ACTUAL_2025, ACTUAL_PLAYOFF, DEFICITS, rates as rateData, stakes, type Deficit } from "@/lib/data";
 import { EITHER, PLAYOFF, PULL, REGULAR, evaluatePolicy, solveDP, type DPResult } from "@/lib/dp";
-import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, lateness, mss, pct, secondTicks, signed } from "@/lib/format";
+import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, goalDiff, lateness, mss, pct, secondTicks, signed } from "@/lib/format";
+import { useContainerWidth } from "@/lib/hooks";
 import { useModel, useSolution } from "@/lib/model";
 
 const TABS = [
-  { id: "optimal", label: "Optimal vs actual" },
+  { id: "optimal", label: "Model vs NHL teams" },
   { id: "pull-now", label: "Should they pull now?" },
   { id: "hood", label: "Under the hood (for analysts)" },
   { id: "test", label: "Test case" },
@@ -25,17 +26,28 @@ export default function Model() {
       <SectionTitle
         sub={
           <>
-            A dynamic program works backward from the final horn, second by second, and at every score and time picks
-            whichever is worth more: keeping the goalie in or pulling it. The objective is{" "}
-            <Term id="points" /> in the regular season and <Term id="winprob" /> in the playoffs.
+            <p>
+              Our model evaluates that decision at every second of the final 15 minutes, weighing the increased chance of
+              scoring with an extra attacker against the risk of conceding into an empty net.
+            </p>
+            <p>
+              For regular-season games, it identifies the decision that maximizes <Term id="points" />. For playoff games,
+              where there are no points for an overtime loss, it instead maximizes <Term id="winprob" />.
+            </p>
+            <p>
+              For readers who want the technical detail: this is a dynamic program that works backward from the final
+              horn, second by second (see Under the hood).
+            </p>
           </>
         }
       >
-        When should a team pull the goalie?
+        So when should a team actually pull its goalie?
       </SectionTitle>
-      <div className="mb-6">
-        <RateControls />
-      </div>
+      {sub !== "test" && (
+        <div className="mb-6">
+          <RateControls />
+        </div>
+      )}
       <SubTabs base="/model" tabs={TABS} />
       {(!sub || sub === "optimal") && <OptimalTab />}
       {sub === "pull-now" && <PullNowTab />}
@@ -51,37 +63,59 @@ function OptimalTab() {
   const lp = sol.latestPull;
   const actual = mode === "playoff" ? ACTUAL_PLAYOFF : ACTUAL_2025;
   const actualLabel = mode === "playoff" ? `Teams' average playoff pull (${stakes.seasons[0]} to 2025–26)` : "Teams' average pull, 2025–26";
+  const { isDefault } = useModel();
   return (
     <div className="space-y-6">
+      <p className="text-[15px] leading-relaxed text-ink">
+        {isDefault ? "Under our assumptions and using league-average scoring rates" : "At the scoring rates you have set"}, the
+        optimal time to pull when trailing by one goal is <strong>{mss(lp[1])}</strong>
+        {mode === "playoff" ? " in a playoff game" : ""}. The model doesn't know which teams or players are on the ice, so
+        treat its times as a league-wide benchmark rather than a rule for every game.
+      </p>
       <div className="grid gap-4 md:grid-cols-3">
         {DEFICITS.map((d) => (
           <Stat
             key={d}
             accent={d === 1}
-            label={`Down ${d}: model says pull at`}
-            value={<span className="text-pull">{lp[d] === 900 ? "15:00+" : mss(lp[d])}</span>}
+            label={`Down ${d} goal${d > 1 ? "s" : ""}`}
+            value={
+              lp[d] == null ? (
+                <span className="text-2xl">Don't pull</span>
+              ) : (
+                <span className="text-2xl">
+                  Pull with <span className="text-pull">{lp[d] === 900 ? "15:00+" : mss(lp[d])}</span> remaining
+                </span>
+              )
+            }
             sub={
               <>
-                Teams pull at {mss(actual[d])}: {lateness(lp[d], actual[d])}.
+                NHL teams pull with {mss(actual[d])} left on average: {lateness(lp[d], actual[d])}.
               </>
             }
           />
         ))}
       </div>
       <Card>
-        <h3 className="font-semibold">Do teams pull when the model says they should?</h3>
+        <h3 className="font-semibold">How far off are NHL teams from the optimal pull time?</h3>
         <p className="mb-2 mt-1 text-[14px] text-muted">
           {mode === "playoff"
             ? "Playoff objective (win probability) against teams' actual playoff pulls."
             : "Regular-season objective (expected standings points) against 2025–26 regular-season pulls."}{" "}
           Further right = more time left = an earlier pull.
         </p>
-        <Dumbbell actual={actual} model={lp} actualLabel={actualLabel} modelLabel="Model's latest optimal pull" />
+        <Dumbbell actual={actual} model={lp} actualLabel={actualLabel} modelLabel="Model's recommended pull time" />
         {mode === "regular" && (
           <Note>
-            Teams' averages follow the course definition (first pull per game, team and deficit). Leaving out re-pulls after an
-            empty-net goal, 2025–26 teams pulled at {mss(rateData.actual2025FirstOnly["1"])}, {mss(rateData.actual2025FirstOnly["2"])} and{" "}
-            {mss(rateData.actual2025FirstOnly["3"])}: the gap to the model shrinks down 2 but stays large at every deficit.
+            Teams' averages count each team's first pull at each deficit. Leaving out repeat pulls after an empty-net goal,
+            2025–26 teams pulled at {mss(rateData.actual2025FirstOnly["1"])}, {mss(rateData.actual2025FirstOnly["2"])} and{" "}
+            {mss(rateData.actual2025FirstOnly["3"])}: the gap to the model shrinks down two but stays large at every deficit.
+          </Note>
+        )}
+        {(lp[3] ?? 0) > 720 && (
+          <Note>
+            Down three, our data cleaning leaves out pulls with more than 12:00 left, so the observed data cannot contain a
+            pull as early as the model's {mss(lp[3])}. Any team that did pull that early is missing from the average, which
+            would make teams look slightly later than they really are when down three.
           </Note>
         )}
       </Card>
@@ -93,9 +127,9 @@ function OptimalTab() {
 
 type SweepKey = "r65" | "r56" | "r55";
 const SWEEPS: Record<SweepKey, { label: string; min: number; max: number; step: number }> = {
-  r65: { label: "Pulled offense (6v5)", min: 2, max: 14, step: 0.5 },
-  r56: { label: "Empty-net defense (5v6)", min: 10, max: 34, step: 1 },
-  r55: { label: "5v5 rate", min: 1, max: 4.5, step: 0.25 },
+  r65: { label: RATE_LABELS.r65.short, min: 2, max: 14, step: 0.5 },
+  r56: { label: RATE_LABELS.r56.short, min: 10, max: 34, step: 1 },
+  r55: { label: RATE_LABELS.r55.short, min: 1, max: 4.5, step: 0.25 },
 };
 
 function Sensitivity() {
@@ -118,9 +152,9 @@ function Sensitivity() {
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold">How robust is "pull earlier"?</h3>
+          <h3 className="font-semibold">What if our scoring-rate estimates are wrong?</h3>
           <p className="text-[14px] text-muted">
-            The model's latest pull time as one rate varies and the other two stay at the slider values.
+            The model's recommended pull time as one rate varies and the other two stay at the slider values.
           </p>
         </div>
         <Segmented
@@ -141,7 +175,7 @@ function Sensitivity() {
             tickCount={7}
             label={xLabel(`${spec.label}, goals per 60`)}
           />
-          <YAxis tick={AXIS} ticks={ticks} domain={[0, 900]} tickFormatter={(v: number) => mss(v)} width={76} label={yLabel("Latest optimal pull (m:ss)")} />
+          <YAxis tick={AXIS} ticks={ticks} domain={[0, 900]} tickFormatter={(v: number) => mss(v)} width={76} label={yLabel("Recommended pull (m:ss)")} />
           <Tooltip
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
@@ -170,13 +204,23 @@ function Sensitivity() {
         <span>Times are capped at the 15:00 horizon.</span>
       </div>
       {key === "r65" && breakEven && (
-        <Note>
-          The model's down-1 pull comes earlier than teams' {mss(actual1)} average for any 6v5 rate of about{" "}
-          {fmt(breakEven.x, 1)} goals per 60 or more. We measure {fmt(rateData.chosen.r65)}, so the conclusion survives
-          very large errors in that estimate.
-        </Note>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink">
+          {breakEven.x < rateData.chosen.r65 ? (
+            <>
+              Even if our estimate of how often teams score with an extra attacker is substantially too high, the model
+              still recommends pulling earlier than NHL teams currently do when trailing by one. In fact, the conclusion
+              holds as long as that scoring rate exceeds approximately {fmt(breakEven.x, 1)} goals per 60 minutes, well
+              below our estimate of {fmt(rateData.chosen.r65)}.
+            </>
+          ) : (
+            <>
+              At the other rates you have set, the model only recommends pulling earlier than teams' {mss(actual1)} average
+              when trailing by one if the extra-attacker rate is at least about {fmt(breakEven.x, 1)} goals per 60.
+            </>
+          )}
+        </p>
       )}
-      {key !== "r65" && <Note>Each point is a full re-solve of the DP at that rate.</Note>}
+      {key !== "r65" && <Note>Each point re-solves the model at that rate.</Note>}
     </Card>
   );
 }
@@ -185,30 +229,30 @@ function RatesTable() {
   type Opt = (typeof rateData.options)[number];
   const cols: Column<Opt>[] = [
     { key: "id", label: "Option", render: (r) => (r.chosen ? <strong>{r.id} (site default)</strong> : r.id) },
-    { key: "label", label: "How the rates are combined", render: (r) => r.label, className: "whitespace-normal min-w-[16rem]" },
-    { key: "r55", label: "5v5", align: "right", render: (r) => fmt(r.r55) },
-    { key: "r65", label: "6v5", align: "right", render: (r) => fmt(r.r65) },
-    { key: "r56", label: "5v6", align: "right", render: (r) => fmt(r.r56) },
+    { key: "label", label: "How the rates are combined", render: (r) => r.label.replace(/(\d)v(\d)/g, "$1-on-$2"), className: "whitespace-normal min-w-[16rem]" },
+    { key: "r55", label: "5-on-5", align: "right", render: (r) => fmt(r.r55) },
+    { key: "r65", label: "6-on-5", align: "right", render: (r) => fmt(r.r65) },
+    { key: "r56", label: "5-on-6", align: "right", render: (r) => fmt(r.r56) },
     ...DEFICITS.map((d) => ({
       key: `l${d}`,
       label: `Down ${d}`,
-      tip: "Latest optimal pull time, regular-season objective.",
+      tip: "Recommended pull time, regular-season objective.",
       align: "right" as const,
       render: (r: Opt) => mss(r.latest[String(d) as "1"]),
     })),
   ];
   return (
     <Card>
-      <h3 className="font-semibold">Where the default rates come from, and what the alternatives would say</h3>
+      <h3 className="font-semibold">Where our default rates come from, and what the alternatives would say</h3>
       <p className="mb-3 mt-1 text-[14px] text-muted">
-        All from 2025–26 play. Our default (option B) uses 5v5 play from the 3rd period, when players are tired and the
+        All from 2025–26 play. Our default (option B) uses 5-on-5 play from the 3rd period, when players are tired and the
         game state is closest to a pull decision, and <Term id="context">pull context</Term> for the two goalie-out rates
         so <Term id="delayed">delayed-penalty</Term> seconds don't make the empty net look safer than it is. Option D
         shows what happens without that fix. Rates in goals per 60.
       </p>
       <SortableTable columns={cols} rows={rateData.options} rowKey={(r) => r.id} rowClass={(r) => (r.chosen ? "bg-brand-light/40" : undefined)} />
       <Note>
-        Under every option, teams pull later than the model says at every deficit. Full reasoning is on the About &amp; method
+        Under every option, teams pull later than the model recommends at every deficit. Full reasoning is on the About
         page.
       </Note>
     </Card>
@@ -235,8 +279,10 @@ function PullNowTab() {
   const show = (x: number) => (mode === "playoff" ? pct(x, 1) : `${fmt(x, 3)} pts`);
   const diff = (x: number) => (mode === "playoff" ? `${signed((vModel - x) * 100, 1)} points of win chance` : `${signed(vModel - x, 3)} pts`);
   const unit = mode === "playoff" ? "chance to win from here" : "expected standings points from here";
-  const W = 1000;
-  const X = (s: number) => 40 + ((900 - s) / 900) * (W - 80);
+  const { ref: tlRef, width: tlWidth } = useContainerWidth<HTMLDivElement>(900);
+  const W = Math.max(300, tlWidth);
+  const small = W < 520;
+  const X = (s: number) => 24 + ((900 - s) / 900) * (W - 48);
   return (
     <div className="space-y-6">
       <Card>
@@ -289,10 +335,11 @@ function PullNowTab() {
           <Stat label="Pull at teams' usual time" value={show(vUsual)} sub={`pull at ${mss(actual)}; the model gains ${diff(vUsual)}`} />
           <Stat label="Never pull" value={show(vNever)} sub={`the model gains ${diff(vNever)}`} />
         </div>
-        <svg viewBox={`0 0 ${W} 92`} className="mt-5 h-auto w-full" role="img" aria-label="Pull window on the clock">
-          <rect x={40} y={30} width={W - 80} height={18} rx={4} fill="#e2e8f0" />
+        <div ref={tlRef} className="mt-5 w-full">
+        <svg width={W} height={92} viewBox={`0 0 ${W} 92`} role="img" aria-label="Pull window on the clock">
+          <rect x={24} y={30} width={W - 48} height={18} rx={4} fill="#e2e8f0" />
           {latest != null && <rect x={X(latest)} y={30} width={X(0) - X(latest)} height={18} rx={4} fill="#fecaca" />}
-          {[900, 720, 540, 360, 180, 0].map((s) => (
+          {(small ? [900, 540, 180, 0] : [900, 720, 540, 360, 180, 0]).map((s) => (
             <text key={s} x={X(s)} y={68} textAnchor="middle" fontSize="13" fill="#475569">
               {mss(s)}
             </text>
@@ -306,10 +353,11 @@ function PullNowTab() {
             you are here
           </text>
         </svg>
+        </div>
         <Note>
           Red band: the model's pull window for this deficit (pulling is optimal from {mss(latest)} to the horn). Each card is
-          the expected value from this moment if the team follows that plan, including re-pulling at a deeper deficit after
-          an empty-net goal. Differences are per game; they add up over a season (see Deeper dives → Value of pulling).
+          the expected value from this moment if the team follows that plan, including pulling again at a deeper deficit
+          after an empty-net goal. Differences are per game; they add up over a season (see Deeper dives → Value of pulling).
         </Note>
       </Card>
     </div>
@@ -361,8 +409,11 @@ decision    = Pull if V_pull − V_stay > 1e−12, Either if |difference| ≤ 1e
           <p>
             <strong>Assumptions.</strong> Only our team decides (the opponent never pulls); no penalties; rates don't depend on
             the score except through the pull; the goalie can come back and go out freely, because the choice is re-made every
-            second. Source code: <code>src/lib/dp.ts</code>, checked against a Python reference (<code>analysis/dp.py</code>)
-            to 1e−12.
+            second.
+          </p>
+          <p>
+            <strong>Source code and independent verification.</strong> <code>src/lib/dp.ts</code>, checked against a
+            separate Python version (<code>analysis/dp.py</code>) to 1e−12.
           </p>
         </div>
       </Card>
@@ -387,8 +438,8 @@ decision    = Pull if V_pull − V_stay > 1e−12, Either if |difference| ≤ 1e
         </p>
         <Grid sol={sol} cols={cols} diffs={diffs} kind="value" />
         <h3 className="mt-6 font-semibold">Decision grid</h3>
-        <p className="mb-2 text-[13px] text-muted">Pull region in red. "—" = keep the goalie in.</p>
-        <Grid sol={sol} cols={cols} diffs={diffs} kind="decision" />
+        <p className="mb-2 text-[13px] text-muted">Pull region in red. "—" = keep the goalie in. (At 0:00 the game is over, so there is no decision column.)</p>
+        <Grid sol={sol} cols={cols.filter((t) => t > 0)} diffs={diffs} kind="decision" />
       </Card>
     </div>
   );
@@ -412,7 +463,7 @@ function Grid({ sol, cols, diffs, kind }: { sol: DPResult; cols: number[]; diffs
           {diffs.map((d) => (
             <tr key={d}>
               <th scope="row" className="sticky left-0 z-10 whitespace-nowrap border-b border-line bg-white px-2 py-1 text-left font-semibold">
-                {d > 0 ? `+${d}` : d === 0 ? "0 (tied)" : `${d}`}
+                {goalDiff(d)}
               </th>
               {cols.map((t) => {
                 const dec = t === 0 ? 0 : sol.decision[t][d + 8];

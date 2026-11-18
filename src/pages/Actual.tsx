@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { useSubTab } from "@/lib/nav";
-import { Bar, BarChart, CartesianGrid, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
+import { AppLink as Link, useSubTab } from "@/lib/nav";
+import { Bar, BarChart, CartesianGrid, LabelList, Legend, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
 import { AXIS, ChartTooltipBox, ResponsiveChart, DeficitLegend, GRID, TrendChart, xLabel, yLabel } from "@/components/charts";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, Note, Segmented, SectionTitle, SubTabs, Term } from "@/components/ui";
 import { DEFICITS, distribution, homeRoad, meta, records, trend, type Deficit } from "@/lib/data";
-import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, int, mss, pct, pval, signed } from "@/lib/format";
+import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, friendlyDate, int, mss, niceTicks, pct, pval, secondTicks, signed, teamName } from "@/lib/format";
 import { useSolution } from "@/lib/model";
 
 const TABS = [
@@ -22,12 +22,17 @@ export default function Actual() {
       <SectionTitle
         sub={
           <>
-            Every regular-season <Term id="first">first genuine pull</Term> from 2010–11 through November 7, 2026:{" "}
-            {int(meta.firstPulls)} pulls. Times are minutes:seconds left in regulation when the goalie came off.
+            We've analyzed {int(meta.firstPulls)} goalie pulls across NHL regular-season games dating back to 2010–11.
+            Explore how pull timing has changed over time, how it varies by score, whether home teams pull differently, and
+            the record books. (Which teams have been the most aggressive is on{" "}
+            <Link to="/deeper/teams" className="text-brand underline">
+              Deeper dives → Teams
+            </Link>
+            .) Times are minutes:seconds left in regulation when the goalie came off.
           </>
         }
       >
-        When NHL teams actually pull the goalie
+        When do NHL teams actually pull their goalie?
       </SectionTitle>
       <SubTabs base="/actual" tabs={TABS} />
       {(!sub || sub === "trend") && <TrendTab />}
@@ -75,7 +80,7 @@ function TrendTab() {
       {
         key: `n${d}`,
         label: `Down ${d}: pulls`,
-        tip: `Number of first genuine pulls when trailing by ${d}.`,
+        tip: `Number of first pulls when trailing by ${d}.`,
         align: "right" as const,
         render: (r: SeasonRow) => int(r[`n${d}`] as number),
         sort: (r: SeasonRow) => r[`n${d}`] as number,
@@ -83,7 +88,7 @@ function TrendTab() {
       {
         key: `v${d}`,
         label: `Down ${d}: ${stat}`,
-        tip: `${stat === "mean" ? "Average" : "Median"} time left (m:ss) at the first genuine pull when trailing by ${d}.`,
+        tip: `${stat === "mean" ? "Average" : "Median"} time left (m:ss) at the first pull when trailing by ${d}.`,
         align: "right" as const,
         render: (r: SeasonRow) => mss(r[`v${d}`] as number),
         sort: (r: SeasonRow) => r[`v${d}`] as number,
@@ -127,7 +132,7 @@ function TrendTab() {
           </label>
           <label className="flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={firstOnly} onChange={(e) => setFirstOnly(e.target.checked)} />
-            Exclude <Term id="repull">re-pulls</Term>
+            Exclude <Term id="repull">repeat pulls</Term>
           </label>
         </div>
         <TrendChart stat={stat} deficits={shown} showBand={band} firstOnly={firstOnly} height={400} />
@@ -135,19 +140,30 @@ function TrendTab() {
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {trend.tests.map((t) => (
             <div key={t.deficit} className="rounded-lg bg-ice px-3 py-2 text-[14px]">
-              <span className="font-semibold">{DEFICIT_LABEL[t.deficit]}:</span> {fmt(t.slope, 1)} s earlier per season (±
+              <span className="font-semibold">{DEFICIT_LABEL[t.deficit]}:</span> {fmt(t.slope, 1)} seconds earlier per season (±
               {fmt(1.96 * t.se, 1)} s, {pval(t.p)}, n = {int(t.n)})
             </div>
           ))}
         </div>
+        <p className="mt-4 text-[15px] leading-relaxed text-ink">
+          {firstOnly ? (
+            <>Showing each team's first pull of the game only, so repeat pulls are left out.</>
+          ) : (
+            <>
+              We count each team's first goalie pull at each deficit. This means a team can appear more than once in the
+              same game if it pulls its goalie again after conceding an empty-net goal. These repeat pulls account for{" "}
+              {pct(meta.repulls["2"].share, 0)} of the observations when teams trail by two goals and tend to occur much
+              later in the game ({mss(meta.repulls["2"].meanRepull)} left on average). Tick "Exclude repeat pulls" to see
+              first pulls of the game only.
+            </>
+          )}
+        </p>
         <Note>
-          {firstOnly
-            ? "Showing each team's first pull of the game only. "
-            : `Following the course definition, a first pull is counted per game, team and deficit, so a re-pull at a new deficit counts too: ${pct(meta.repulls["2"].share, 0)} of down-2 rows are re-pulls, mostly after an empty-net goal, averaging ${mss(meta.repulls["2"].meanRepull)}. Tick "Exclude re-pulls" to see first pulls of the game only. `}
-          Trend test: linear regression of each pull's time left on season (2010–11 = 0), full seasons only. The class
-          figure shows down 1 rising from about 1.2 to about 1.9 minutes; our data give {mss(trend.rows[0].mean)} to{" "}
-          {mss(trend.rows.find((r) => r.season === "2025–26" && r.deficit === 1)!.mean)}. 2012–13 (48 games), 2019–20 and
-          2020–21 were short seasons, and 2026–27 covers games through November 7 only.
+          What counts as a pull: the goalie must stay off for at least 20 seconds, unless a goal is scored or the spell
+          runs to the final horn, so quick trips to the bench during a delayed penalty are left out. Pulls with more than
+          5:00 left down one, 8:00 down two or 12:00 down three are also left out. The trend test is a linear regression
+          of each pull's time left on season (2010–11 = 0), full seasons only. 2012–13 (48 games), 2019–20 and 2020–21
+          were short seasons, and 2026–27 covers games through November 7 only. Details on the About page.
         </Note>
       </Card>
       <Card>
@@ -185,6 +201,7 @@ function DistributionTab() {
   const q = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))];
   const model = sol.latestPull[deficit];
   const xmax = Math.max(bins.length * bin, (model ?? 0) + bin);
+  const yTicks = niceTicks(Math.max(...bins.map((b) => b.n), 1), 5);
   const ticksStep = xmax > 600 ? 120 : 60;
   const ticks = Array.from({ length: Math.floor(xmax / ticksStep) + 1 }, (_, i) => i * ticksStep);
   return (
@@ -213,7 +230,7 @@ function DistributionTab() {
         <Mini label="Mean" value={mss(mean)} />
         <Mini label="Median" value={mss(q(0.5))} />
         <Mini label="Middle 50%" value={`${mss(q(0.25))}–${mss(q(0.75))}`} />
-        <Mini label="Model says" value={mss(model)} red />
+        <Mini label="Model recommends" value={mss(model)} red />
       </div>
       <ResponsiveChart height={340}>
         <BarChart data={bins} margin={{ top: 16, right: 24, bottom: 28, left: 4 }} barCategoryGap={1}>
@@ -227,7 +244,14 @@ function DistributionTab() {
             tick={AXIS}
             label={xLabel("Time left at first pull (m:ss)")}
           />
-          <YAxis tick={AXIS} allowDecimals={false} label={yLabel("Pulls")} width={76} />
+          <YAxis
+            tick={AXIS}
+            ticks={yTicks}
+            domain={[0, yTicks[yTicks.length - 1]]}
+            allowDecimals={false}
+            label={yLabel("Pulls")}
+            width={76}
+          />
           <Tooltip
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
@@ -243,8 +267,9 @@ function DistributionTab() {
         </BarChart>
       </ResponsiveChart>
       <Note>
-        Each bar is {bin} seconds wide. Down 1 the distribution is tight; down 3 it is wide, because the score, the opponent
-        and the coach all vary more. The red line is the model's latest optimal pull time (regular season, current rates).
+        Each bar represents a {bin === 5 ? "five" : "15"}-second interval. Teams trailing by one goal tend to pull their
+        goalies at relatively similar times. When trailing by three, however, the timing varies much more widely. The red
+        line is the time our model recommends (regular season, at the current scoring rates).
       </Note>
     </Card>
   );
@@ -262,6 +287,14 @@ function Mini({ label, value, red }: { label: string; value: string; red?: boole
 function HomeRoadTab() {
   type Row = (typeof homeRoad.tests)[number];
   const side = (d: number, s: string) => homeRoad.rows.find((r) => r.deficit === d && r.side === s)!;
+  const hrData = DEFICITS.map((d) => ({
+    label: DEFICIT_LABEL[d],
+    home: side(d, "home").mean,
+    road: side(d, "road").mean,
+    hn: side(d, "home").n,
+    rn: side(d, "road").n,
+  }));
+  const hrTicks = secondTicks(Math.max(...hrData.map((r) => Math.max(r.home, r.road))) * 1.1, 60);
   const cols: Column<Row>[] = [
     { key: "d", label: "Deficit", render: (r) => DEFICIT_LABEL[r.deficit] },
     { key: "hn", label: "Home pulls", align: "right", render: (r) => int(side(r.deficit, "home").n) },
@@ -286,11 +319,48 @@ function HomeRoadTab() {
   ];
   return (
     <Card>
-      <h3 className="font-semibold">Do road teams pull earlier?</h3>
+      <h3 className="font-semibold">Does playing at home affect when coaches pull their goalie?</h3>
       <p className="mb-3 mt-1 text-[15px] text-muted">
         Not by a meaningful margin. Home and road teams pull within about 4 seconds of each other at every deficit, and
         none of the differences is significant at the 5% level. Full seasons 2010–11 to 2025–26.
       </p>
+      <ResponsiveChart height={280}>
+        <BarChart data={hrData} margin={{ top: 24, right: 16, bottom: 8, left: 4 }} barGap={4}>
+          <CartesianGrid stroke={GRID} vertical={false} />
+          <XAxis dataKey="label" tick={AXIS} />
+          <YAxis
+            tick={AXIS}
+            ticks={hrTicks}
+            domain={[0, hrTicks[hrTicks.length - 1]]}
+            tickFormatter={(v: number) => mss(v)}
+            width={76}
+            label={yLabel("Average time left (m:ss)")}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const r = payload[0].payload as (typeof hrData)[number];
+              return (
+                <ChartTooltipBox
+                  title={r.label}
+                  lines={[
+                    { color: "#1e3a8a", text: `Home: ${mss(r.home)} (${int(r.hn)} pulls)` },
+                    { color: "#94a3b8", text: `Road: ${mss(r.road)} (${int(r.rn)} pulls)` },
+                  ]}
+                />
+              );
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 13 }} />
+          <Bar dataKey="home" name="Home" fill="#1e3a8a" isAnimationActive={false}>
+            <LabelList dataKey="home" position="top" formatter={(v: number) => mss(v)} style={{ fontSize: 12, fill: "#334155" }} />
+          </Bar>
+          <Bar dataKey="road" name="Road" fill="#94a3b8" isAnimationActive={false}>
+            <LabelList dataKey="road" position="top" formatter={(v: number) => mss(v)} style={{ fontSize: 12, fill: "#334155" }} />
+          </Bar>
+        </BarChart>
+      </ResponsiveChart>
+      <div className="mt-4" />
       <SortableTable columns={cols} rows={homeRoad.tests} rowKey={(r) => String(r.deficit)} />
     </Card>
   );
@@ -307,17 +377,44 @@ function RecordsTab() {
     partial: "Scored, still lost",
   };
   const recCols: Column<Rec>[] = [
-    { key: "date", label: "Date", render: (r) => r.date, sort: (r) => r.date },
-    { key: "team", label: "Team", render: (r) => `${r.team} ${r.home ? "vs" : "at"} ${r.opp}`, sort: (r) => r.team },
+    { key: "date", label: "Date", render: (r) => <span className="whitespace-nowrap">{friendlyDate(r.date)}</span>, sort: (r) => r.date },
+    {
+      key: "team",
+      label: "Game",
+      tip: "The pulling team first. vs: at home; at: on the road.",
+      render: (r) => `${teamName(r.team)} ${r.home ? "vs" : "at"} ${teamName(r.opp)}`,
+      sort: (r) => teamName(r.team),
+    },
     { key: "sec", label: "Pulled with", align: "right", render: (r) => mss(r.sec), sort: (r) => r.sec },
     { key: "final", label: "Final", align: "right", tip: "Pulling team's goals first. OT / SO: decided in overtime or a shootout.", render: (r) => r.final },
     { key: "out", label: "What happened", render: (r) => outcomeText[r.outcome] },
   ];
+  const comebackCols: Column<Rec>[] = [
+    ...recCols.slice(0, 2),
+    { key: "deficit", label: "Trailing by", align: "right", render: (r) => r.deficit, sort: (r) => r.deficit },
+    ...recCols.slice(2, 4),
+  ];
   type Long = (typeof records.longest)[number];
   const longCols: Column<Long>[] = [
-    { key: "date", label: "Date", render: (r) => `${r.date}${r.playoff ? " (playoffs)" : ""}` },
-    { key: "team", label: "Team", render: (r) => `${r.team} vs ${r.opp}` },
-    { key: "deficit", label: "Deficit", align: "right", render: (r) => `Down ${r.deficit}` },
+    {
+      key: "date",
+      label: "Date",
+      render: (r) => (
+        <span className="whitespace-nowrap">
+          {friendlyDate(r.date)}
+          {r.playoff ? " (playoffs)" : ""}
+        </span>
+      ),
+      sort: (r) => r.date,
+    },
+    {
+      key: "team",
+      label: "Game",
+      tip: "The pulling team first. vs: at home; at: on the road.",
+      render: (r) => `${teamName(r.team)} ${r.home ? "vs" : "at"} ${teamName(r.opp)}`,
+      sort: (r) => teamName(r.team),
+    },
+    { key: "deficit", label: "Trailing by", align: "right", render: (r) => r.deficit },
     { key: "from", label: "Goalie out", align: "right", render: (r) => `${mss(r.start)} → ${mss(r.end)}` },
     { key: "dur", label: "Length", align: "right", render: (r) => mss(r.duration), sort: (r) => r.duration },
   ];
@@ -325,27 +422,33 @@ function RecordsTab() {
     <div className="space-y-6">
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold">Earliest first pulls, regular season</h3>
+          <h3 className="font-semibold">The earliest recorded goalie pulls</h3>
           <Segmented label="Deficit" value={d} onChange={setD} options={DEFICITS.map((x) => ({ value: x, label: DEFICIT_LABEL[x] }))} />
         </div>
         <SortableTable columns={recCols} rows={(records.earliest as Record<string, Rec[]>)[String(d)]} rowKey={(r, i) => `${r.date}${r.team}${i}`} />
-        <Note>Window limits from the data cleaning apply: no pull earlier than 5:00 down 1, 8:00 down 2 or 12:00 down 3 is in the data.</Note>
+        <Note>
+          Regular season. Our data cleaning leaves out pulls with more than 5:00 left down one, 8:00 down two or 12:00
+          down three, so no earlier pull can appear here.
+        </Note>
       </Card>
       <Card>
-        <h3 className="mb-3 font-semibold">Latest first pulls down one goal</h3>
+        <h3 className="mb-3 font-semibold">The longest waits to pull while trailing by one</h3>
         <SortableTable columns={recCols} rows={records.latestDown1} rowKey={(r, i) => `${r.date}${r.team}${i}`} />
       </Card>
       <Card>
-        <h3 className="mb-3 font-semibold">Longest single empty-net spells</h3>
+        <h3 className="mb-3 font-semibold">The longest stretches played without a goalie</h3>
         <SortableTable columns={longCols} rows={records.longest} rowKey={(r, i) => `${r.date}${r.team}${i}`} />
         <Note>
-          Genuine spells, regular season and playoffs.
+          A single continuous stretch with the goalie pulled, regular season and playoffs.
           {records.longest.every((r) => r.deficit >= 3) ? " Every one came when trailing by three or more." : ""}
         </Note>
       </Card>
       <Card>
-        <h3 className="mb-3 font-semibold">Comebacks from two or more down after pulling ({records.comebacksFrom2Plus.length} wins)</h3>
-        <SortableTable columns={recCols} rows={records.comebacksFrom2Plus} rowKey={(r, i) => `${r.date}${r.team}${i}`} maxHeight={420} />
+        <h3 className="mb-3 font-semibold">
+          Against the odds: comeback wins after pulling while down two or more goals ({records.comebacksFrom2Plus.length}{" "}
+          games)
+        </h3>
+        <SortableTable columns={comebackCols} rows={records.comebacksFrom2Plus} rowKey={(r, i) => `${r.date}${r.team}${i}`} maxHeight={420} />
       </Card>
     </div>
   );

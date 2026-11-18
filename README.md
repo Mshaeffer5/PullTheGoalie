@@ -10,9 +10,9 @@ A static React site for Columbia Business School **B8131 Sports Analytics** (Pul
 | --- | --- |
 | Overview | The Game 7 hook, model vs actual at a glance, five findings |
 | When teams pull | **Required view 1:** first-pull trend by season and deficit (2010–11 to 2026–27, partial season marked), season table, trend tests, distributions, home vs road, records |
-| The model | **Required view 2:** our DP with adjustable 5v5 / 6v5 / 5v6 rates, regular-season and playoff objectives, model vs actual, sensitivity, "should they pull now?" calculator, value and decision grids, the algorithm write-up, and the live test case (4:00 / 8:15 / 12:33) |
+| The model | **Required view 2:** our DP with adjustable 5-on-5 / 6-on-5 / 5-on-6 rates, regular-season and playoff objectives, model vs actual, sensitivity, "should they pull now?" calculator, value and decision grids, the algorithm write-up, and the live test case (4:00 / 8:15 / 12:33) |
 | Deeper dives | Value of pulling (points per season), team rankings with Bayes shrinkage vs points % and SRS, line-dependent 6v5 rates, what happens after a pull, and regular season vs bubble teams' last 10 games vs playoffs |
-| About & method | Purpose, audience, glossary, the three rates and why, filters and edge cases, data problems found, methods, sources |
+| About | Four sub-tabs: the project (purpose, audience, key findings, glossary), how we estimated scoring rates, data cleaning and quality checks, and methods, verification and sources |
 
 ## Decisions baked in
 

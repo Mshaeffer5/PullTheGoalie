@@ -1,7 +1,7 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { clsx } from "clsx";
 import type { ReactNode } from "react";
-import { AppNavLink } from "@/lib/nav";
+import { AppNavLink, useSubTab } from "@/lib/nav";
 import { GLOSSARY } from "@/lib/glossary";
 
 export function cn(...a: Parameters<typeof clsx>) {
@@ -16,12 +16,13 @@ export function SectionTitle({ children, sub }: { children: ReactNode; sub?: Rea
   return (
     <div className="mb-3">
       <h2 className="text-xl font-semibold text-ink">{children}</h2>
-      {sub && <p className="mt-1 max-w-3xl text-[15px] text-muted">{sub}</p>}
+      {sub && <div className="mt-1 max-w-3xl space-y-2 text-[15px] text-muted">{sub}</div>}
     </div>
   );
 }
 
 export function SubTabs({ base, tabs }: { base: string; tabs: { id: string; label: string }[] }) {
+  const current = useSubTab() ?? tabs[0].id;
   return (
     <nav className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3" aria-label="Sections">
       {tabs.map((t, i) => (
@@ -29,10 +30,10 @@ export function SubTabs({ base, tabs }: { base: string; tabs: { id: string; labe
           key={t.id}
           to={i === 0 ? base : `${base}/${t.id}`}
           end
-          className={(active) =>
+          className={() =>
             cn(
               "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-              active ? "bg-brand text-white" : "bg-white text-muted ring-1 ring-line hover:bg-ice hover:text-ink",
+              current === t.id ? "bg-brand text-white" : "bg-white text-muted ring-1 ring-line hover:bg-ice hover:text-ink",
             )
           }
         >
