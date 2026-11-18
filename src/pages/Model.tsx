@@ -1,8 +1,8 @@
 import * as Slider from "@radix-ui/react-slider";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AXIS, ChartTooltipBox, Dumbbell, GRID, xLabel, yLabel } from "@/components/charts";
+import { useSubTab } from "@/lib/nav";
+import { CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
+import { AXIS, ChartTooltipBox, ResponsiveChart, Dumbbell, GRID, xLabel, yLabel } from "@/components/charts";
 import { RateControls } from "@/components/RateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Callout, Card, cn, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
@@ -19,7 +19,7 @@ const TABS = [
 ];
 
 export default function Model() {
-  const { sub } = useParams();
+  const sub = useSubTab();
   return (
     <div>
       <SectionTitle
@@ -77,6 +77,13 @@ function OptimalTab() {
           Further right = more time left = an earlier pull.
         </p>
         <Dumbbell actual={actual} model={lp} actualLabel={actualLabel} modelLabel="Model's latest optimal pull" />
+        {mode === "regular" && (
+          <Note>
+            Teams' averages follow the course definition (first pull per game, team and deficit). Leaving out re-pulls after an
+            empty-net goal, 2025–26 teams pulled at {mss(rateData.actual2025FirstOnly["1"])}, {mss(rateData.actual2025FirstOnly["2"])} and{" "}
+            {mss(rateData.actual2025FirstOnly["3"])}: the gap to the model shrinks down 2 but stays large at every deficit.
+          </Note>
+        )}
       </Card>
       <Sensitivity />
       <RatesTable />
@@ -123,7 +130,7 @@ function Sensitivity() {
           options={(Object.keys(SWEEPS) as SweepKey[]).map((k) => ({ value: k, label: SWEEPS[k].label }))}
         />
       </div>
-      <ResponsiveContainer width="100%" height={360}>
+      <ResponsiveChart height={360}>
         <LineChart data={data} margin={{ top: 26, right: 24, bottom: 28, left: 4 }}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis
@@ -152,7 +159,7 @@ function Sensitivity() {
             <Line key={d} dataKey={`d${d}`} stroke={DEFICIT_COLORS[d]} strokeWidth={2.5} dot={false} isAnimationActive={false} name={DEFICIT_LABEL[d]} />
           ))}
         </LineChart>
-      </ResponsiveContainer>
+      </ResponsiveChart>
       <div className="flex flex-wrap gap-4 text-[13px] text-muted">
         {DEFICITS.map((d) => (
           <span key={d} className="inline-flex items-center gap-2">
@@ -252,7 +259,11 @@ function PullNowTab() {
               <Slider.Track className="relative h-1.5 grow rounded-full bg-line">
                 <Slider.Range className="absolute h-full rounded-full bg-brand" />
               </Slider.Track>
-              <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-brand bg-white shadow" />
+              <Slider.Thumb
+                aria-label="Time left in the third period"
+                aria-valuetext={`${mss(t)} left`}
+                className="block h-5 w-5 rounded-full border-2 border-brand bg-white shadow focus:outline-none focus:ring-2 focus:ring-brand/40"
+              />
             </Slider.Root>
             <div className="mt-1 flex justify-between text-[12px] text-muted">
               <span>15:00</span>

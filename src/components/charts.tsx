@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import {
   Area,
   CartesianGrid,
@@ -14,6 +14,29 @@ import { trend, type Deficit } from "@/lib/data";
 import { DEFICIT_COLORS, DEFICIT_LABEL, mss, secondTicks } from "@/lib/format";
 
 export const AXIS = { fontSize: 13, fill: "#475569" };
+
+/** True after the first client render. Charts measure the page, so they render only in the browser. */
+export function useMounted(): boolean {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    setM(true);
+  }, []);
+  return m;
+}
+
+/** A Recharts chart at a fixed height, rendered client-side only (safe under server rendering). */
+export function ResponsiveChart({ height, children }: { height: number; children: ReactElement }) {
+  const mounted = useMounted();
+  return (
+    <div style={{ height }} className="w-full">
+      {mounted ? (
+        <ResponsiveContainer width="100%" height="100%">
+          {children}
+        </ResponsiveContainer>
+      ) : null}
+    </div>
+  );
+}
 export const GRID = "#e2e8f0";
 
 export function yLabel(value: string) {
@@ -44,32 +67,35 @@ interface TrendProps {
   showBand?: boolean;
   model?: Partial<Record<Deficit, number | null>>;
   height?: number;
+  /** Use each team's first pull of the game only (drop re-pulls after an empty-net goal). */
+  firstOnly?: boolean;
 }
 
 /** Time left at the first genuine pull, by season and deficit. 2026–27 (partial) is drawn hollow and dashed. */
-export function TrendChart({ stat, deficits, showBand = false, model, height = 380 }: TrendProps) {
+export function TrendChart({ stat, deficits, showBand = false, model, height = 380, firstOnly = false }: TrendProps) {
+  const src = firstOnly ? trend.rowsFirstOnly : trend.rows;
   const data = useMemo(() => {
-    const seasons = [...new Set(trend.rows.map((r) => r.season))];
+    const seasons = [...new Set(src.map((r) => r.season))];
     return seasons.map((season, si) => {
       const row: Record<string, unknown> = { season, partial: false };
       for (const d of [1, 2, 3] as Deficit[]) {
-        const t = trend.rows.find((r) => r.season === season && r.deficit === d)!;
+        const t = src.find((r) => r.season === season && r.deficit === d)!;
         const v = t[stat];
         const isPartial = t.partial;
         row.partial = isPartial;
         row[`n${d}`] = t.n;
         row[`v${d}`] = v;
         row[`s${d}`] = isPartial ? null : v; // solid segment
-        const nextPartial = seasons[si + 1] && trend.rows.find((r) => r.season === seasons[si + 1])?.partial;
+        const nextPartial = seasons[si + 1] && src.find((r) => r.season === seasons[si + 1])?.partial;
         row[`t${d}`] = isPartial || nextPartial ? v : null; // dashed tail into the partial season
         row[`b${d}`] = [t.p25, t.p75];
       }
       return row;
     });
-  }, [stat]);
+  }, [stat, src]);
 
   const maxData = Math.max(
-    ...trend.rows.filter((r) => deficits.includes(r.deficit as Deficit)).map((r) => (showBand ? r.p75 : r[stat])),
+    ...src.filter((r) => deficits.includes(r.deficit as Deficit)).map((r) => (showBand ? r.p75 : r[stat])),
   );
   const maxModel = Math.max(0, ...deficits.map((d) => model?.[d] ?? 0));
   const top = Math.max(maxData, maxModel) * 1.05;
@@ -77,7 +103,7 @@ export function TrendChart({ stat, deficits, showBand = false, model, height = 3
   const ticks = secondTicks(top, step);
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
+    <ResponsiveChart height={height}>
       <ComposedChart data={data} margin={{ top: 10, right: model ? 150 : 44, bottom: 28, left: 4 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis dataKey="season" tick={AXIS} interval={1} tickMargin={6} label={xLabel("Season")} />
@@ -161,7 +187,7 @@ export function TrendChart({ stat, deficits, showBand = false, model, height = 3
           />
         ))}
       </ComposedChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 

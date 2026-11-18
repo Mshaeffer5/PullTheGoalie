@@ -53,6 +53,6 @@ export const GLOSSARY: Record<string, { term: string; def: string }> = {
   },
   repull: {
     term: "Re-pull",
-    def: "A second or later goalie-out spell by the same team in the same game, often after conceding an empty-net goal.",
+    def: "A second or later goalie-out spell by the same team in the same game, usually after conceding an empty-net goal (pulled down 1, went down 2, pulled again). It counts as a first pull at its new deficit unless re-pulls are excluded.",
   },
 };

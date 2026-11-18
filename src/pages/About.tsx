@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { AppLink as Link } from "@/lib/nav";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, SectionTitle } from "@/components/ui";
 import { ACTUAL_2025, meta, outcomes, rates, stakes, trend, value } from "@/lib/data";
@@ -124,9 +124,13 @@ export default function About() {
               the horn). The scoring rates use pull context only (above).
             </li>
             <li>
-              <strong>Re-pulls:</strong> only the first genuine spell per game, team and deficit counts. A team that pulls down 2
-              and later trails by 1 in the same game contributes one pull at each deficit. {int(meta.rePulls)} re-pull spells
-              are excluded this way.
+              <strong>Re-pulls:</strong> the required view follows the course definition: the first genuine spell per game, team
+              and deficit. A team that pulls down 1, concedes an empty-net goal and pulls again down 2 therefore contributes a
+              down-1 pull and a down-2 pull. Those re-pulls are {pct(meta.repulls["2"].share, 0)} of down-2 rows and come late
+              ({mss(meta.repulls["2"].meanRepull)} on average), so they pull the down-2 average toward the horn. The trend view has an
+              "Exclude re-pulls" switch, and the model comparison reports both versions; the conclusion is the same either way.
+              Re-pulls are identified from the order of each team's genuine spells, not from <code>n_prior_spells</code> (see
+              below).
             </li>
             <li>
               <strong>Playoffs:</strong> the trend and team views are regular season only. Playoff games ({int(meta.spellsPlayoff)}{" "}
@@ -180,6 +184,22 @@ export default function About() {
               <strong>Cross-check of the first-pull file:</strong> rebuilding first pulls from the spell file (regular season,
               genuine, earliest spell per game, team and deficit) gives {int(meta.rebuiltFirstPulls)} rows, exactly matching the{" "}
               {int(meta.firstPulls)} in <code>first_pulls.txt</code>.
+            </li>
+            <li>
+              <strong><code>n_prior_spells</code> can't identify re-pulls on its own.</strong> It counts every earlier goalie-out
+              spell, including delayed-penalty blips and spells the course cleaning removed. {int(meta.nPriorCountsRemoved)} teams'
+              first genuine pull of a game has <code>n_prior_spells</code> above zero, so filtering on it would wrongly drop real first
+              pulls. We used spell order instead.
+            </li>
+            <li>
+              <strong>Odd on-ice states in the 2025–26 intervals:</strong> 344 seconds with fewer than 3 or more than 6 skaters,
+              624 seconds with six skaters and the goalie still in, and 1,033 seconds with both goalies out. These are tracking
+              glitches or line-change moments. None of them enters our three rates, which need exactly 5v5 with both goalies in, or
+              6v5 and 5v6 with exactly one net empty, so we left them alone.
+            </li>
+            <li>
+              <strong>2019–20 schedule:</strong> teams played 68 to 71 games before the season stopped. Points % handles the
+              uneven counts in the team and stakes analyses.
             </li>
             <li>
               <strong>Two names for Utah</strong> in the results file (Utah Hockey Club, Utah Mammoth) are mapped to one team.

@@ -61,7 +61,11 @@ src/components/      Charts, sortable table, rate sliders, glossary tooltips
 
 ## Moving it to Lovable
 
-The stack matches Lovable's usual template (Vite, React 18, TypeScript, Tailwind, Recharts, React Router; dev server on port 8080). There is no backend, no Supabase and no environment variables. Lovable's GitHub sync creates its own repository, so the usual route is to create a blank Lovable project, connect GitHub, and push this code to the repository Lovable creates (fast-forward, no force-push). Publish only shortly before the deadline.
+New Lovable projects use TanStack Start, and Lovable's Git sync can't attach to an existing repository. The documented route is a ZIP import ("Upload code"), which rebuilds the app on Lovable's stack. **[LOVABLE_HANDOFF.md](LOVABLE_HANDOFF.md)** has the steps, a prompt to paste, a post-import checklist and a fallback. The code is set up for that move: routing is isolated in `src/lib/nav.tsx`, charts render client-side only, and there is no backend or environment variable.
+
+## Data checks
+
+`python3 analysis/audit_data.py` re-runs the consistency checks behind the About page's "data problems" section.
 
 ## Data credits
 

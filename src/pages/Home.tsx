@@ -1,7 +1,7 @@
-import { Link } from "react-router-dom";
+import { AppLink as Link } from "@/lib/nav";
 import { TrendChart, DeficitLegend } from "@/components/charts";
 import { Card, Callout, Stat, Term } from "@/components/ui";
-import { ACTUAL_2025, DEFICITS, hook, outcomes, stakes, trend, value } from "@/lib/data";
+import { ACTUAL_2025, DEFICITS, hook, outcomes, rates, stakes, trend, value } from "@/lib/data";
 import { fmt, lateness, mss, pct } from "@/lib/format";
 import { useModel, useSolution } from "@/lib/model";
 
@@ -69,6 +69,11 @@ export default function Home() {
             />
           ))}
         </div>
+        <p className="mt-2 text-[13px] text-muted">
+          Counting only each team's first pull of the game (dropping re-pulls after an empty-net goal), the 2025–26
+          averages are {mss(rates.actual2025FirstOnly["1"])}, {mss(rates.actual2025FirstOnly["2"])} and{" "}
+          {mss(rates.actual2025FirstOnly["3"])}: still far later than the model.
+        </p>
         {!isDefault && (
           <p className="mt-2 text-[13px] text-pull">
             You have changed the scoring rates on The model tab; model numbers on this page use your rates.

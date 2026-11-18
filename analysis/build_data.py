@@ -112,6 +112,19 @@ long["gnum"] = long.groupby(["season", "team"]).cumcount() + 1
 long["gp"] = long.groupby(["season", "team"]).gnum.transform("max")
 long["cum_pts"] = long.groupby(["season", "team"]).pts.cumsum()
 
+# Re-pulls: a first pull at this deficit that was not the team's first genuine spell of the game
+# (e.g. pulled down 1, conceded an empty-net goal, pulled again down 2). n_prior_spells can't be used
+# for this: it also counts spells the course cleaning removed.
+_g = (pt[(~pt.playoff) & (pt.genuine == 1)]
+      .sort_values(["game_id", "team", "start_sec_remaining"], ascending=[True, True, False]).copy())
+_g["gorder"] = _g.groupby(["game_id", "team"]).cumcount()
+fp = fp.merge(_g[["game_id", "team", "deficit", "start_sec_remaining", "gorder"]],
+              left_on=["game_id", "team", "deficit", "pull_sec_remaining"],
+              right_on=["game_id", "team", "deficit", "start_sec_remaining"], how="left")
+assert fp.gorder.notna().all(), "first pull without its spell"
+fp["repull"] = fp.gorder > 0
+fp = fp.drop(columns=["start_sec_remaining", "gorder"])
+
 # Attach the game result to every regular-season first pull.
 fpj = fp.merge(long[["date", "team", "opp", "gf", "ga", "ot", "gnum", "gp", "season"]]
                .rename(columns={"season": "res_season"}),
@@ -153,22 +166,38 @@ meta = {
     },
     "shortSeasons": {label_from_end(y): int(n) for y, n in res.groupby("season").size().items()
                      if y in (2013, 2020, 2021)},
+    "repulls": {str(d): {"n": int(g.repull.sum()), "share": r(g.repull.mean(), 4),
+                         "meanRepull": r(g[g.repull].pull_sec_remaining.mean(), 1)}
+                for d, g in fp[fp.deficit.between(1, 3)].groupby("deficit")},
+    "nPriorCountsRemoved": int(((_g.gorder == 0) & (_g.n_prior_spells > 0)).sum()),
 }
 
 # ----------------------------------------------------------------------------
 # View 1: trend by season and deficit
 # ----------------------------------------------------------------------------
-trend_rows = []
-for (key, d), g in fp[fp.deficit.between(1, 3)].groupby(["season", "deficit"]):
-    s = g.pull_sec_remaining
-    trend_rows.append({"season": label_from_key(key), "key": int(key), "deficit": int(d), "n": int(len(s)),
-                       "mean": r(s.mean(), 1), "median": r(s.median(), 1),
-                       "p25": r(s.quantile(.25), 1), "p75": r(s.quantile(.75), 1),
-                       "partial": bool(key == PARTIAL_KEY)})
-pooled = []
-for d, g in fp[(fp.deficit.between(1, 3)) & (~fp.partial)].groupby("deficit"):
-    s = g.pull_sec_remaining
-    pooled.append({"deficit": int(d), "n": int(len(s)), "mean": r(s.mean(), 1), "median": r(s.median(), 1)})
+def trend_table(frame):
+    out = []
+    for (key, d), g in frame[frame.deficit.between(1, 3)].groupby(["season", "deficit"]):
+        s = g.pull_sec_remaining
+        out.append({"season": label_from_key(key), "key": int(key), "deficit": int(d), "n": int(len(s)),
+                    "mean": r(s.mean(), 1), "median": r(s.median(), 1),
+                    "p25": r(s.quantile(.25), 1), "p75": r(s.quantile(.75), 1),
+                    "partial": bool(key == PARTIAL_KEY)})
+    return out
+
+
+trend_rows = trend_table(fp)
+trend_rows_first = trend_table(fp[~fp.repull])
+def pooled_table(frame):
+    out = []
+    for d, g in frame[(frame.deficit.between(1, 3)) & (~frame.partial)].groupby("deficit"):
+        s = g.pull_sec_remaining
+        out.append({"deficit": int(d), "n": int(len(s)), "mean": r(s.mean(), 1), "median": r(s.median(), 1)})
+    return out
+
+
+pooled = pooled_table(fp)
+pooled_first = pooled_table(fp[~fp.repull])
 trend_tests = []
 full = fp[(~fp.partial) & (fp.deficit.between(1, 3))].copy()
 full["t"] = (full.season // 10000) - 2010
@@ -176,7 +205,8 @@ for d, g in full.groupby("deficit"):
     est, n = ols(g.pull_sec_remaining.values, pd.DataFrame({"season_index": g.t.values}))
     c, se, p = est["season_index"]
     trend_tests.append({"deficit": int(d), "slope": r(c, 2), "se": r(se, 2), "p": float(p), "n": n})
-write("trend.json", {"rows": trend_rows, "pooled": pooled, "tests": trend_tests})
+write("trend.json", {"rows": trend_rows, "pooled": pooled, "tests": trend_tests,
+                     "rowsFirstOnly": trend_rows_first, "pooledFirstOnly": pooled_first})
 
 dist = {}
 for (key, d), g in fp[fp.deficit.between(1, 3)].groupby(["season", "deficit"]):
@@ -245,6 +275,8 @@ _, R55, R65, R56 = options[CHOSEN]
 
 actual_2025 = {str(d): r(fp[(fp.season == 20252026) & (fp.deficit == d)].pull_sec_remaining.mean(), 1)
                for d in (1, 2, 3)}
+actual_2025_first = {str(d): r(fp[(fp.season == 20252026) & (fp.deficit == d) & (~fp.repull)].pull_sec_remaining.mean(), 1)
+                     for d in (1, 2, 3)}
 write("rates.json", {
     "chosen": {"id": CHOSEN, "r55": R55, "r65": R65, "r56": R56},
     "components": [
@@ -264,6 +296,7 @@ write("rates.json", {
                   "pulled6v5ByDeficit": {str(k): rate_of(off[off.lead == -k]) for k in (1, 2, 3)}},
     "options": option_rows,
     "actual2025": actual_2025,
+    "actual2025FirstOnly": actual_2025_first,
     "testCase": {"r55": 3.0, "r65": 8.0, "r56": 20.0, "expected": {"1": 240, "2": 495, "3": 753}},
 })
 print("rates", R55, R65, R56, "->", solve(R55, R65, R56)["latest_pull"])
@@ -452,7 +485,7 @@ for season in range(2012, 2027):
         continue
     groups, k = playoff_groups(season)
     prev = standings[standings.season == season - 1].assign(fr=lambda x: x.team.map(franchise)).set_index("fr").pct
-    for grp in set(groups.values()):
+    for grp in sorted(set(groups.values())):
         members = [franchise(t) for t, v in groups.items() if v == grp]
         p = prev.reindex(members).dropna().sort_values(ascending=False)
         cut_rows.append({"season": season, "grp": grp, "cut": float(p.iloc[k - 1])})

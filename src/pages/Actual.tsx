@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AXIS, ChartTooltipBox, DeficitLegend, GRID, TrendChart, xLabel, yLabel } from "@/components/charts";
+import { useSubTab } from "@/lib/nav";
+import { Bar, BarChart, CartesianGrid, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
+import { AXIS, ChartTooltipBox, ResponsiveChart, DeficitLegend, GRID, TrendChart, xLabel, yLabel } from "@/components/charts";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Card, Note, Segmented, SectionTitle, SubTabs, Term } from "@/components/ui";
 import { DEFICITS, distribution, homeRoad, meta, records, trend, type Deficit } from "@/lib/data";
-import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, int, mss, pval, signed } from "@/lib/format";
+import { DEFICIT_COLORS, DEFICIT_LABEL, fmt, int, mss, pct, pval, signed } from "@/lib/format";
 import { useSolution } from "@/lib/model";
 
 const TABS = [
@@ -16,7 +16,7 @@ const TABS = [
 ];
 
 export default function Actual() {
-  const { sub } = useParams();
+  const sub = useSubTab();
   return (
     <div>
       <SectionTitle
@@ -44,21 +44,23 @@ function TrendTab() {
   const [stat, setStat] = useState<"mean" | "median">("mean");
   const [shown, setShown] = useState<Deficit[]>([1, 2, 3]);
   const [band, setBand] = useState(false);
+  const [firstOnly, setFirstOnly] = useState(false);
+  const src = firstOnly ? trend.rowsFirstOnly : trend.rows;
   const rows: SeasonRow[] = useMemo(() => {
-    const seasons = [...new Set(trend.rows.map((r) => r.season))];
+    const seasons = [...new Set(src.map((r) => r.season))];
     return seasons.map((s) => {
       const o: SeasonRow = { season: s, partial: false };
       for (const d of DEFICITS) {
-        const t = trend.rows.find((r) => r.season === s && r.deficit === d)!;
+        const t = src.find((r) => r.season === s && r.deficit === d)!;
         o.partial = t.partial;
         o[`n${d}`] = t.n;
         o[`v${d}`] = t[stat];
       }
       return o;
     });
-  }, [stat]);
+  }, [stat, src]);
   const pooledRow: SeasonRow = { season: "All full seasons", partial: false };
-  for (const p of trend.pooled) {
+  for (const p of firstOnly ? trend.pooledFirstOnly : trend.pooled) {
     pooledRow[`n${p.deficit}`] = p.n;
     pooledRow[`v${p.deficit}`] = p[stat];
   }
@@ -123,8 +125,12 @@ function TrendTab() {
             <input type="checkbox" checked={band} onChange={(e) => setBand(e.target.checked)} />
             Show middle 50% of pulls
           </label>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={firstOnly} onChange={(e) => setFirstOnly(e.target.checked)} />
+            Exclude <Term id="repull">re-pulls</Term>
+          </label>
         </div>
-        <TrendChart stat={stat} deficits={shown} showBand={band} height={400} />
+        <TrendChart stat={stat} deficits={shown} showBand={band} firstOnly={firstOnly} height={400} />
         <DeficitLegend deficits={shown} />
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {trend.tests.map((t) => (
@@ -135,6 +141,9 @@ function TrendTab() {
           ))}
         </div>
         <Note>
+          {firstOnly
+            ? "Showing each team's first pull of the game only. "
+            : `Following the course definition, a first pull is counted per game, team and deficit, so a re-pull at a new deficit counts too: ${pct(meta.repulls["2"].share, 0)} of down-2 rows are re-pulls, mostly after an empty-net goal, averaging ${mss(meta.repulls["2"].meanRepull)}. Tick "Exclude re-pulls" to see first pulls of the game only. `}
           Trend test: linear regression of each pull's time left on season (2010–11 = 0), full seasons only. The class
           figure shows down 1 rising from about 1.2 to about 1.9 minutes; our data give {mss(trend.rows[0].mean)} to{" "}
           {mss(trend.rows.find((r) => r.season === "2025–26" && r.deficit === 1)!.mean)}. 2012–13 (48 games), 2019–20 and
@@ -206,7 +215,7 @@ function DistributionTab() {
         <Mini label="Middle 50%" value={`${mss(q(0.25))}–${mss(q(0.75))}`} />
         <Mini label="Model says" value={mss(model)} red />
       </div>
-      <ResponsiveContainer width="100%" height={340}>
+      <ResponsiveChart height={340}>
         <BarChart data={bins} margin={{ top: 16, right: 24, bottom: 28, left: 4 }} barCategoryGap={1}>
           <CartesianGrid stroke={GRID} vertical={false} />
           <XAxis
@@ -232,7 +241,7 @@ function DistributionTab() {
             <ReferenceLine x={model} stroke="#dc2626" strokeWidth={2} label={{ value: "model", position: "top", fontSize: 12, fill: "#dc2626" }} />
           )}
         </BarChart>
-      </ResponsiveContainer>
+      </ResponsiveChart>
       <Note>
         Each bar is {bin} seconds wide. Down 1 the distribution is tight; down 3 it is wide, because the score, the opponent
         and the coach all vary more. The red line is the model's latest optimal pull time (regular season, current rates).

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useSubTab } from "@/lib/nav";
 import {
   Bar,
   BarChart,
@@ -8,7 +8,6 @@ import {
   Line,
   LineChart,
   ReferenceLine,
-  ResponsiveContainer,
   Scatter,
   ScatterChart,
   Tooltip,
@@ -16,7 +15,7 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { AXIS, ChartTooltipBox, GRID, xLabel, yLabel } from "@/components/charts";
+import { AXIS, ChartTooltipBox, ResponsiveChart, GRID, xLabel, yLabel } from "@/components/charts";
 import { RateControls } from "@/components/RateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Callout, Card, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
@@ -34,7 +33,7 @@ const TABS = [
 ];
 
 export default function Deeper() {
-  const { sub } = useParams();
+  const sub = useSubTab();
   return (
     <div>
       <SectionTitle sub="Five follow-up questions the data and the model can answer. Model-based tabs use the scoring-rate sliders.">
@@ -222,7 +221,7 @@ function TeamsTab() {
           pulling about {fmt(q.slope / 10, 1)} seconds earlier ({pval(q.p)}, r = {fmt(q.r, 2)}). Using SRS instead gives the same
           answer ({pval(teams.quality.srs.p)}). The chart shows {season}.
         </p>
-        <ResponsiveContainer width="100%" height={340}>
+        <ResponsiveChart height={340}>
           <ScatterChart margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} />
             <XAxis dataKey="x" type="number" domain={[xLo, xHi]} ticks={xTicks} tick={AXIS} tickFormatter={(v: number) => v.toFixed(1)} label={xLabel("Points % (standings points ÷ points available)")} />
@@ -238,7 +237,7 @@ function TeamsTab() {
             />
             <Scatter data={scatter} fill="#1d4ed8" fillOpacity={0.75} isAnimationActive={false} />
           </ScatterChart>
-        </ResponsiveContainer>
+        </ResponsiveChart>
       </Card>
       <Card>
         <h3 className="mb-2 font-semibold">Franchises over 16 seasons</h3>
@@ -300,7 +299,7 @@ function LinesTab() {
       </div>
       <Card>
         <h3 className="font-semibold">The 6v5 scoring rate the model uses, by time left</h3>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveChart height={300}>
           <LineChart data={stepData} margin={{ top: 28, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="t" type="number" domain={[0, 300]} reversed ticks={[300, 240, 180, 120, 60, 0]} tickFormatter={(v: number) => mss(v)} tick={AXIS} label={xLabel("Time left (m:ss)")} />
@@ -315,7 +314,7 @@ function LinesTab() {
             <ReferenceLine x={158} stroke="#94a3b8" strokeDasharray="3 3" label={{ value: "final rotation starts", position: "top", fontSize: 12, fill: "#475569" }} />
             <Line dataKey="rate" type="stepAfter" stroke="#1d4ed8" strokeWidth={2.5} dot={false} isAnimationActive={false} />
           </LineChart>
-        </ResponsiveContainer>
+        </ResponsiveChart>
         <Note>
           {lines.cyclingVariant.note} Under that assumption the latest pull down 1 would be {mss(lines.cyclingVariant.latest["1"])},
           but only during line 1's shifts.
@@ -363,7 +362,7 @@ function OutcomesTab() {
           </div>
           <Segmented label="Deficit" value={d} onChange={setD} options={DEFICITS.map((x) => ({ value: x, label: DEFICIT_LABEL[x] }))} />
         </div>
-        <ResponsiveContainer width="100%" height={380}>
+        <ResponsiveChart height={380}>
           <BarChart data={data} margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="season" tick={AXIS} interval={1} label={xLabel("Season")} />
@@ -388,7 +387,7 @@ function OutcomesTab() {
               </Bar>
             ))}
           </BarChart>
-        </ResponsiveContainer>
+        </ResponsiveChart>
         <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted">
           {keys.map((k) => (
             <span key={k} className="inline-flex items-center gap-2" title={OUTCOME_META[k].tip}>
@@ -475,7 +474,7 @@ function StakesTab() {
           Seasons {stakes.seasons[0]} to {stakes.seasons[stakes.seasons.length - 1]}, except 2019–20 (no normal stretch run).
           Regular-season groups use first genuine pulls; playoff pulls use the same filter on playoff games.
         </p>
-        <ResponsiveContainer width="100%" height={340}>
+        <ResponsiveChart height={340}>
           <BarChart data={data} margin={{ top: 10, right: 24, bottom: 28, left: 4 }}>
             <CartesianGrid stroke={GRID} vertical={false} />
             <XAxis dataKey="deficit" tick={AXIS} label={xLabel("Deficit when the goalie came off")} />
@@ -491,7 +490,7 @@ function StakesTab() {
               <Bar key={g.id} dataKey={g.id} fill={g.color} isAnimationActive={false} />
             ))}
           </BarChart>
-        </ResponsiveContainer>
+        </ResponsiveChart>
         <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-muted">
           {GROUPS.map((g) => (
             <span key={g.id} className="inline-flex items-center gap-2">

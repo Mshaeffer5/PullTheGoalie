@@ -1,6 +1,7 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { useEffect } from "react";
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
+import { AppNavLink, usePathname } from "@/lib/nav";
 import { cn } from "@/components/ui";
 import { ModelProvider } from "@/lib/model";
 import Home from "@/pages/Home";
@@ -18,8 +19,11 @@ const NAV = [
 ];
 
 function ScrollTop() {
-  const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  const pathname = usePathname();
+  useEffect(() => {
+    // Block body on purpose: newer browsers return a Promise from scrollTo, and an effect must not return one.
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
@@ -30,7 +34,7 @@ export default function App() {
         <ScrollTop />
         <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <NavLink to="/" className="flex items-center gap-2">
+            <AppNavLink to="/" end className={() => "flex items-center gap-2"}>
               <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm font-bold text-white">
                 6v5
               </span>
@@ -38,22 +42,22 @@ export default function App() {
                 <span className="block text-[17px] font-semibold leading-tight text-ink">Pull the Goalie</span>
                 <span className="block text-[12px] leading-tight text-muted">When NHL teams pull, and when they should</span>
               </span>
-            </NavLink>
+            </AppNavLink>
             <nav className="flex flex-wrap gap-1" aria-label="Main">
               {NAV.map((n) => (
-                <NavLink
+                <AppNavLink
                   key={n.to}
                   to={n.to}
                   end={n.end}
-                  className={({ isActive }) =>
+                  className={(active) =>
                     cn(
                       "rounded-lg px-3 py-1.5 text-sm font-medium",
-                      isActive ? "bg-brand text-white" : "text-muted hover:bg-ice hover:text-ink",
+                      active ? "bg-brand text-white" : "text-muted hover:bg-ice hover:text-ink",
                     )
                   }
                 >
                   {n.label}
-                </NavLink>
+                </AppNavLink>
               ))}
             </nav>
           </div>

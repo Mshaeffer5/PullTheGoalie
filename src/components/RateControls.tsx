@@ -15,7 +15,9 @@ function RateInput({ spec }: { spec: (typeof SPECS)[number] }) {
   const { rates, setRates } = useModel();
   const value = rates[spec.key];
   const [text, setText] = useState(value.toFixed(2));
-  useEffect(() => setText(value.toFixed(2)), [value]);
+  useEffect(() => {
+    setText(value.toFixed(2));
+  }, [value]);
   const comp = rateData.components.find((c) => c.key === spec.key)!;
   const commit = (v: number) => {
     if (!Number.isFinite(v)) return;
@@ -63,7 +65,10 @@ function RateInput({ spec }: { spec: (typeof SPECS)[number] }) {
         <Slider.Track className="relative h-1.5 grow rounded-full bg-line">
           <Slider.Range className="absolute h-full rounded-full bg-brand" />
         </Slider.Track>
-        <Slider.Thumb className="block h-5 w-5 rounded-full border-2 border-brand bg-white shadow focus:outline-none focus:ring-2 focus:ring-brand/40" />
+        <Slider.Thumb
+          aria-label={spec.label}
+          className="block h-5 w-5 rounded-full border-2 border-brand bg-white shadow focus:outline-none focus:ring-2 focus:ring-brand/40"
+        />
       </Slider.Root>
       <div className="mt-1 flex justify-between text-[12px] text-muted">
         <span>{spec.min}</span>

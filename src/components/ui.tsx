@@ -1,7 +1,7 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { clsx } from "clsx";
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { AppNavLink } from "@/lib/nav";
 import { GLOSSARY } from "@/lib/glossary";
 
 export function cn(...a: Parameters<typeof clsx>) {
@@ -25,19 +25,19 @@ export function SubTabs({ base, tabs }: { base: string; tabs: { id: string; labe
   return (
     <nav className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3" aria-label="Sections">
       {tabs.map((t, i) => (
-        <NavLink
+        <AppNavLink
           key={t.id}
           to={i === 0 ? base : `${base}/${t.id}`}
           end
-          className={({ isActive }) =>
+          className={(active) =>
             cn(
               "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-              isActive ? "bg-brand text-white" : "bg-white text-muted ring-1 ring-line hover:bg-ice hover:text-ink",
+              active ? "bg-brand text-white" : "bg-white text-muted ring-1 ring-line hover:bg-ice hover:text-ink",
             )
           }
         >
           {t.label}
-        </NavLink>
+        </AppNavLink>
       ))}
     </nav>
   );
