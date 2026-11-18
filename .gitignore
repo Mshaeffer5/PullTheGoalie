@@ -1,0 +1,20 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+# Python
+__pycache__/
+.venv/
+*.pyc
+# Raw course data stays out of the repo (see README)
+analysis/data_raw/*
+!analysis/data_raw/README.md
+rates_table.txt
+# Course-provided skills stay out of the repo (see analysis/skills/README.md)
+analysis/skills/*
+!analysis/skills/README.md
+*.tsbuildinfo
