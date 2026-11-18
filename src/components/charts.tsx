@@ -106,7 +106,7 @@ export function TrendChart({ stat, deficits, showBand = false, model, height = 3
 
   return (
     <ResponsiveChart height={height}>
-      <ComposedChart data={data} margin={{ top: 10, right: narrow ? 16 : model ? 150 : 44, bottom: 28, left: narrow ? 0 : 4 }}>
+      <ComposedChart data={data} margin={{ top: 10, right: narrow ? 16 : model ? 150 : 44, bottom: 28, left: narrow ? 14 : 4 }}>
         <CartesianGrid stroke={GRID} vertical={false} />
         <XAxis
           dataKey="season"
@@ -121,8 +121,8 @@ export function TrendChart({ stat, deficits, showBand = false, model, height = 3
           ticks={ticks}
           domain={[0, ticks[ticks.length - 1]]}
           tickFormatter={(v: number) => mss(v)}
-          width={narrow ? 44 : 76}
-          label={narrow ? undefined : yLabel("Time left at first pull (m:ss)")}
+          width={narrow ? 62 : 76}
+          label={yLabel(narrow ? "Time left (m:ss)" : "Time left at first pull (m:ss)")}
         />
         <Tooltip
           content={({ active, payload }) => {
@@ -249,7 +249,7 @@ export function Dumbbell({
   const { ref, width } = useContainerWidth<HTMLDivElement>(760);
   const W = Math.max(300, width);
   const small = W < 520;
-  const left = small ? 66 : 92;
+  const left = small ? 84 : 104;
   const right = small ? 18 : 40;
   const rowH = 62;
   const top = 18;
@@ -281,6 +281,16 @@ export function Dumbbell({
         ))}
         <text x={(left + W - right) / 2} y={H - 6} textAnchor="middle" fontSize="13" fill="#475569">
           Time left when the goalie comes off (m:ss)
+        </text>
+        <text
+          x={14}
+          y={top + (rowH * 3) / 2}
+          transform={`rotate(-90 14 ${top + (rowH * 3) / 2})`}
+          textAnchor="middle"
+          fontSize="13"
+          fill="#475569"
+        >
+          Deficit
         </text>
         {([1, 2, 3] as Deficit[]).map((d, i) => {
           const y = top + rowH * i + rowH / 2;

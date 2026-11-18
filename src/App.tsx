@@ -33,7 +33,7 @@ export default function App() {
       <ModelProvider>
         <ScrollTop />
         <div className="flex min-h-screen flex-col">
-        <header className="border-b border-line bg-white/95 backdrop-blur md:sticky md:top-0 md:z-30">
+        <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2 md:py-3">
             <AppNavLink to="/" end className={() => "flex items-center gap-2"}>
               <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-sm font-bold text-white">

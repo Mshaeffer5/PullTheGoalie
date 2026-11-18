@@ -48,6 +48,10 @@ export default function Home() {
             Using {nSeasons} seasons of NHL data and a mathematical model, we explore when teams actually pull their
             goalies, when they should, and how much waiting might be costing them.
           </p>
+          <p className="mt-3 text-[15px] text-muted">
+            Written for hockey fans and the writers who cover them. The model's "Under the hood" tab is for analysts who want
+            to check or extend the math.
+          </p>
         </div>
         <Callout tone="finding">
           <p className="text-[17px] font-semibold">The bottom line: NHL teams are still pulling their goalies too late.</p>

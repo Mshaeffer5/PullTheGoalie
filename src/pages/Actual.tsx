@@ -325,9 +325,9 @@ function HomeRoadTab() {
         none of the differences is significant at the 5% level. Full seasons 2010–11 to 2025–26.
       </p>
       <ResponsiveChart height={280}>
-        <BarChart data={hrData} margin={{ top: 24, right: 16, bottom: 8, left: 4 }} barGap={4}>
+        <BarChart data={hrData} margin={{ top: 24, right: 16, bottom: 24, left: 4 }} barGap={4}>
           <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="label" tick={AXIS} />
+          <XAxis dataKey="label" tick={AXIS} label={xLabel("Deficit when the goalie came off")} />
           <YAxis
             tick={AXIS}
             ticks={hrTicks}
@@ -351,7 +351,7 @@ function HomeRoadTab() {
               );
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 13 }} />
+          <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 13, paddingBottom: 8 }} />
           <Bar dataKey="home" name="Home" fill="#1e3a8a" isAnimationActive={false}>
             <LabelList dataKey="home" position="top" formatter={(v: number) => mss(v)} style={{ fontSize: 12, fill: "#334155" }} />
           </Bar>

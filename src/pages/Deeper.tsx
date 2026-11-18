@@ -20,7 +20,7 @@ import { AXIS, ChartTooltipBox, ResponsiveChart, GRID, xLabel, yLabel } from "@/
 import { RateControls } from "@/components/RateControls";
 import { SortableTable, type Column } from "@/components/SortableTable";
 import { Callout, Card, InfoDot, Note, Segmented, SectionTitle, Stat, SubTabs, Term } from "@/components/ui";
-import { DEFICITS, lines, outcomes, stakes, teams, value, type Deficit } from "@/lib/data";
+import { DEFICITS, lines, outcomes, rates as rateData, stakes, teams, value, type Deficit } from "@/lib/data";
 import { PLAYOFF, REGULAR, evaluatePolicy, lineAt, lineRateFn, solveDP } from "@/lib/dp";
 import { DEFICIT_LABEL, fmt, int, mss, pct, pval, secondTicks, signed } from "@/lib/format";
 import { useIsNarrow } from "@/lib/hooks";
@@ -308,10 +308,22 @@ function LinesTab() {
   const byLine = useMemo(() => solveDP({ ...rates, r65: fn, payoffs }).latestPull, [rates, fn, payoffs]);
   const stepData = useMemo(() => Array.from({ length: 301 }, (_, i) => ({ t: 300 - i, rate: i === 300 ? fn(1) : fn(300 - i), line: 300 - i <= 158 ? lineAt(Math.max(1, 300 - i), lines.blocks) : null })), [fn]);
   const lineShift1 = (byLine[1] ?? 0) - (constant[1] ?? 0);
+  const r65 = rateData.components.find((c) => c.key === "r65")!;
+  const overallLine = { line: 0, seconds: r65.seconds, goals: r65.goals, rate: r65.rate };
   type LR = (typeof lines.rates)[number];
   const lrCols: Column<LR>[] = [
-    { key: "line", label: "Forward line", render: (r) => `Line ${r.line}${r.line === 1 ? " (most-used)" : ""}` },
-    { key: "toi", label: "Shift length", tip: "Assumed time on ice before a change.", align: "right", render: (r) => `${lines.blocks.find((b) => b.line === r.line)!.seconds} s` },
+    {
+      key: "line",
+      label: "Forward line",
+      render: (r) => (r.line === 0 ? "All extra-attacker time (our default rate)" : `Line ${r.line}${r.line === 1 ? " (most-used)" : ""}`),
+    },
+    {
+      key: "toi",
+      label: "Shift length",
+      tip: "Assumed time on ice before a change.",
+      align: "right",
+      render: (r) => (r.line === 0 ? "—" : `${lines.blocks.find((b) => b.line === r.line)!.seconds} s`),
+    },
     { key: "sec", label: "Time with goalie pulled", align: "right", render: (r) => `${fmt(r.seconds / 3600, 1)} h` },
     { key: "g", label: "Goals", align: "right", render: (r) => r.goals },
     { key: "rate", label: "Goals per 60", align: "right", render: (r) => fmt(r.rate) },
@@ -357,7 +369,7 @@ function LinesTab() {
           from 2025–26 games with the goalie pulled.
         </p>
         <div className="mt-3">
-          <SortableTable columns={lrCols} rows={lines.rates} rowKey={(r) => String(r.line)} />
+          <SortableTable columns={lrCols} rows={lines.rates} pinned={[overallLine]} rowKey={(r) => String(r.line)} />
         </div>
         <Note>
           A further {fmt(lines.unranked.seconds / 3600, 1)} hours of extra-attacker time had no ranked line on the ice{" "}
